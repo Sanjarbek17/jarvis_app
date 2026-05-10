@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'log_service.dart';
+import 'tts_service.dart';
+import 'dart:math';
 
 /// Always-on voice detection service.
 ///
@@ -24,6 +26,16 @@ class WakeWordService {
 
   static const _platform = MethodChannel('com.example.controller_phone/voice_control');
 
+  final List<String> _greetings = [
+    "Yes?",
+    "Listening",
+    "Ready",
+    "At your service",
+    "How can I help?",
+    "Yes, sir?"
+  ];
+  final _random = Random();
+
   // ── State ──────────────────────────────────────────────────────────────────
   final SpeechToText _speech = SpeechToText();
   bool _isAvailable   = false;
@@ -38,6 +50,7 @@ class WakeWordService {
 
   // ── Init ───────────────────────────────────────────────────────────────────
   Future<bool> init() async {
+    await ttsService.init();
     _isAvailable = await _speech.initialize(
       onStatus: _onStatus,
       onError: (error) {
@@ -127,6 +140,10 @@ class WakeWordService {
     _setState(WakeState.awake);
     _speech.stop(); // stop the wake-word listener before playing sound/starting command
     _playActivationSound();
+    
+    // Voice acknowledgment
+    final greeting = _greetings[_random.nextInt(_greetings.length)];
+    ttsService.speak(greeting);
 
     // Check if command is already in the same phrase: "jarvis go home"
     final afterWake = fullPhrase
