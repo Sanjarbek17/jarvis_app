@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 import '../services/action_executor_service.dart';
 import '../services/qwen_ai_service.dart';
 
-class ControlPanel extends StatelessWidget {
+class ControlPanel extends StatefulWidget {
   const ControlPanel({super.key});
 
+  @override
+  State<ControlPanel> createState() => _ControlPanelState();
+}
+
+class _ControlPanelState extends State<ControlPanel> {
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -42,13 +47,14 @@ class ControlPanel extends StatelessWidget {
             leading: const Icon(Icons.computer, color: Colors.blue),
             title: const Text('Ollama on Mac (LAN)', style: TextStyle(fontSize: 14, color: Colors.white)),
             subtitle: Text(
-              'qwen2.5:0.5b @ ${QwenAIService.macIp}:${QwenAIService.port}',
+              '${QwenAIService.model} @ ${QwenAIService.macIp}:${QwenAIService.port}',
               style: TextStyle(fontSize: 12, color: Colors.blue.shade300),
             ),
             trailing: IconButton(
               icon: const Icon(Icons.refresh, color: Colors.white70),
               onPressed: () async {
                 await QwenAIService.initialize();
+                if (mounted) setState(() {});
               },
               tooltip: 'Re-check connection',
             ),

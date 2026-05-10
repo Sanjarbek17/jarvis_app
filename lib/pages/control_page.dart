@@ -127,6 +127,7 @@ class _ControlPageState extends State<ControlPage> with SingleTickerProviderStat
             AppHeader(
               isAccessibilityEnabled: _isAccessibilityEnabled,
               onRequestAccessibility: PlatformUtil.openAccessibilitySettings,
+              onSettingsReturned: () => setState(() {}),
             ),
             Expanded(
               child: SingleChildScrollView(

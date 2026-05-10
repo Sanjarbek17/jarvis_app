@@ -13,21 +13,22 @@ class QwenAIService {
   static String _macIp = '192.168.43.104'; // Default Mac's LAN IP
   static int _port = 11434;
   static bool _useHttps = false;
-  static String _model = 'qwen2.5:0.5b';
+  static String _model = 'qwen3:0.6b';
 
   static String get macIp => _macIp;
   static int get port => _port;
   static bool get useHttps => _useHttps;
   static String get model => _model;
-  static String get _baseUrl => '${_useHttps ? 'https' : 'http'}://$_macIp:$_port';
+  static String get _baseUrl =>
+      '${_useHttps ? 'https' : 'http'}://$_macIp:$_port';
 
   // ── Initialisation ──────────────────────────────────────────────────────────
 
   static Future<void> initialize() async {
     // Load config from preferences
     final prefs = await SharedPreferences.getInstance();
-    _macIp = prefs.getString('ollama_ip') ?? '192.168.43.104';
-    _port = prefs.getInt('ollama_port') ?? 11434;
+    _macIp = prefs.getString('ollama_ip') ?? '95.46.161.3';
+    _port = prefs.getInt('ollama_port') ?? 8111;
     _useHttps = prefs.getBool('ollama_https') ?? false;
     _model = prefs.getString('ollama_model') ?? 'qwen2.5:0.5b';
 
@@ -37,7 +38,8 @@ class QwenAIService {
           .get(Uri.parse('$_baseUrl/api/tags'))
           .timeout(const Duration(seconds: 5));
       if (response.statusCode == 200) {
-        final models = (jsonDecode(response.body)['models'] as List?)
+        final models =
+            (jsonDecode(response.body)['models'] as List?)
                 ?.map((m) => m['name'] as String)
                 .toList() ??
             [];
@@ -54,7 +56,12 @@ class QwenAIService {
     }
   }
 
-  static Future<void> updateConfig(String ip, int port, bool useHttps, String model) async {
+  static Future<void> updateConfig(
+    String ip,
+    int port,
+    bool useHttps,
+    String model,
+  ) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('ollama_ip', ip);
     await prefs.setInt('ollama_port', port);
@@ -95,10 +102,7 @@ class QwenAIService {
         {'role': 'user', 'content': command},
       ],
       'stream': false,
-      'options': {
-        'temperature': 0.1,
-        'num_predict': 48,
-      },
+      'options': {'temperature': 0.1, 'num_predict': 48},
     });
 
     try {

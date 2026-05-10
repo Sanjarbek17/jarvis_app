@@ -55,12 +55,18 @@ class WakeWordService {
     _isAvailable = await _speech.initialize(
       onStatus: _onStatus,
       onError: (error) {
-        logger.log('WakeWord STT error: $error');
-        // permanent=true means STT engine fully stopped — restart it
-        if (_running && error.permanent) {
+        // 'error_no_match' is just silence/no speech heard. We log it quietly.
+        if (error.errorMsg == 'error_no_match') {
+          // logger.log('WakeWord: Silence...'); // Optional: log silence or just ignore
+        } else {
+          logger.log('WakeWord STT error: ${error.errorMsg}');
+        }
+
+        // Ensure we restart if the engine stopped, even for non-permanent errors
+        if (_running && !_speech.isListening && !_isStarting) {
           _restartTimer?.cancel();
-          _restartTimer = Timer(const Duration(milliseconds: 600), () {
-            if (_running && !_speech.isListening) {
+          _restartTimer = Timer(const Duration(milliseconds: 800), () {
+            if (_running && !_speech.isListening && !_isStarting) {
               _state == WakeState.awake
                   ? _listenForCommand()
                   : _listenForWakeWord();
@@ -106,7 +112,7 @@ class WakeWordService {
     if ((status == 'notListening' || status == 'done') && _running) {
       // Small delay to let the engine settle before restarting
       _restartTimer?.cancel();
-      _restartTimer = Timer(const Duration(milliseconds: 500), () {
+      _restartTimer = Timer(const Duration(milliseconds: 800), () {
         // Only restart if we are still running, not already listening, 
         // and not in the middle of a manual transition.
         if (_running && !_speech.isListening && !_isStarting) {
@@ -157,12 +163,12 @@ class WakeWordService {
     _isStarting = true; // Lock to prevent _onStatus from restarting prematurely
     _setState(WakeState.awake);
     
-    await _speech.stop(); // Wait for it to stop properly
+    await _speech.cancel(); // More aggressive than stop()
     _playActivationSound();
     
-    // Voice acknowledgment
+    // Voice acknowledgment - WAIT for it to finish
     final greeting = _greetings[_random.nextInt(_greetings.length)];
-    ttsService.speak(greeting);
+    await ttsService.speak(greeting);
 
     // Check if command is already in the same phrase: "jarvis go home"
     final afterWake = fullPhrase
@@ -176,16 +182,16 @@ class WakeWordService {
       logger.log('WakeWord: Inline command detected: "$afterWake"');
       Future.delayed(const Duration(milliseconds: 300), () => _dispatchCommand(afterWake));
     } else {
-      // Small delay to let greeting start/TTS settle
-      Future.delayed(const Duration(milliseconds: 500), _listenForCommand);
+      // Jarvis finished speaking, now we can safely start listening for command
+      _listenForCommand();
     }
   }
 
   Future<void> _listenForCommand() async {
     if (!_running || _isStarting) return;
     if (_speech.isListening) {
-      await _speech.stop();
-      await Future.delayed(const Duration(milliseconds: 200));
+      await _speech.cancel();
+      await Future.delayed(const Duration(milliseconds: 300));
     }
 
     _isStarting = true;

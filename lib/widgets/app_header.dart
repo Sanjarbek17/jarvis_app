@@ -5,11 +5,13 @@ import 'status_indicator.dart';
 class AppHeader extends StatelessWidget {
   final bool isAccessibilityEnabled;
   final VoidCallback onRequestAccessibility;
+  final VoidCallback? onSettingsReturned;
 
   const AppHeader({
     super.key,
     required this.isAccessibilityEnabled,
     required this.onRequestAccessibility,
+    this.onSettingsReturned,
   });
 
   @override
@@ -50,10 +52,13 @@ class AppHeader extends StatelessWidget {
               const SizedBox(width: 8),
               IconButton(
                 icon: const Icon(Icons.settings, color: Colors.white70),
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const SettingsPage()),
-                ),
+                onPressed: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const SettingsPage()),
+                  );
+                  onSettingsReturned?.call();
+                },
               ),
             ],
           ),
