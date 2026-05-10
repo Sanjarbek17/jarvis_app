@@ -40,6 +40,7 @@ class WakeWordService {
   final SpeechToText _speech = SpeechToText();
   bool _isAvailable   = false;
   bool _running       = false;
+  bool _isStarting    = false; // Lock to prevent redundant calls
   WakeState _state    = WakeState.idle;
   Timer? _commandTimer;
   Timer? _restartTimer;
@@ -105,8 +106,10 @@ class WakeWordService {
     if ((status == 'notListening' || status == 'done') && _running) {
       // Small delay to let the engine settle before restarting
       _restartTimer?.cancel();
-      _restartTimer = Timer(const Duration(milliseconds: 400), () {
-        if (_running && !_speech.isListening) {
+      _restartTimer = Timer(const Duration(milliseconds: 500), () {
+        // Only restart if we are still running, not already listening, 
+        // and not in the middle of a manual transition.
+        if (_running && !_speech.isListening && !_isStarting) {
           if (_state == WakeState.idle) {
             _listenForWakeWord();
           } else if (_state == WakeState.awake) {
@@ -117,31 +120,44 @@ class WakeWordService {
     }
   }
 
-  void _listenForWakeWord() {
-    if (!_running) return;
+  Future<void> _listenForWakeWord() async {
+    if (!_running || _isStarting) return;
+    if (_speech.isListening) return;
+
+    _isStarting = true;
     _setState(WakeState.idle);
-    _speech.listen(
-      onResult: (result) {
-        if (!result.finalResult) return;
-        if (_state != WakeState.idle) return; // already activated, ignore
-        final words = result.recognizedWords.toLowerCase().trim();
-        logger.log('WakeWord heard: "$words"');
-        if (words.contains(wakeWord)) {
-          _onWakeWordDetected(words);
-        }
-      },
-      listenFor:    const Duration(seconds: 30),
-      pauseFor:     const Duration(seconds: 3),
-      localeId:     'en_US',
-      cancelOnError: false,
-    );
+
+    try {
+      await _speech.listen(
+        onResult: (result) {
+          if (!result.finalResult) return;
+          if (_state != WakeState.idle) return; // already activated, ignore
+          final words = result.recognizedWords.toLowerCase().trim();
+          logger.log('WakeWord heard: "$words"');
+          if (words.contains(wakeWord)) {
+            _onWakeWordDetected(words);
+          }
+        },
+        listenFor:    const Duration(seconds: 30),
+        pauseFor:     const Duration(seconds: 3),
+        localeId:     'en_US',
+        cancelOnError: false,
+      );
+    } catch (e) {
+      logger.log('WakeWord listen error: $e');
+    } finally {
+      _isStarting = false;
+    }
   }
 
-  void _onWakeWordDetected(String fullPhrase) {
+  void _onWakeWordDetected(String fullPhrase) async {
     if (_state != WakeState.idle) return; // debounce: ignore if already active
     logger.log('WakeWord: ACTIVATED!');
+    
+    _isStarting = true; // Lock to prevent _onStatus from restarting prematurely
     _setState(WakeState.awake);
-    _speech.stop(); // stop the wake-word listener before playing sound/starting command
+    
+    await _speech.stop(); // Wait for it to stop properly
     _playActivationSound();
     
     // Voice acknowledgment
@@ -154,16 +170,25 @@ class WakeWordService {
         .replaceAll(RegExp(r'[,.]'), '')
         .trim();
 
+    _isStarting = false; // Release lock
+
     if (afterWake.length > 2) {
       logger.log('WakeWord: Inline command detected: "$afterWake"');
       Future.delayed(const Duration(milliseconds: 300), () => _dispatchCommand(afterWake));
     } else {
-      Future.delayed(const Duration(milliseconds: 400), _listenForCommand);
+      // Small delay to let greeting start/TTS settle
+      Future.delayed(const Duration(milliseconds: 500), _listenForCommand);
     }
   }
 
-  void _listenForCommand() {
-    if (!_running) return;
+  Future<void> _listenForCommand() async {
+    if (!_running || _isStarting) return;
+    if (_speech.isListening) {
+      await _speech.stop();
+      await Future.delayed(const Duration(milliseconds: 200));
+    }
+
+    _isStarting = true;
     logger.log('WakeWord: Listening for command...');
     _setState(WakeState.awake);
 
@@ -172,25 +197,30 @@ class WakeWordService {
     _commandTimer = Timer(commandListenTimeout, () {
       if (_state == WakeState.awake) {
         logger.log('WakeWord: No command heard, going back to idle.');
-        _setState(WakeState.idle);
         _listenForWakeWord();
       }
     });
 
-    _speech.listen(
-      onResult: (result) {
-        if (!result.finalResult) return;
-        final cmd = result.recognizedWords.trim();
-        if (cmd.isNotEmpty) {
-          _commandTimer?.cancel();
-          _dispatchCommand(cmd);
-        }
-      },
-      listenFor:    commandListenTimeout,
-      pauseFor:     const Duration(seconds: 2),
-      localeId:     'en_US',
-      cancelOnError: false,
-    );
+    try {
+      await _speech.listen(
+        onResult: (result) {
+          if (!result.finalResult) return;
+          final cmd = result.recognizedWords.trim();
+          if (cmd.isNotEmpty) {
+            _commandTimer?.cancel();
+            _dispatchCommand(cmd);
+          }
+        },
+        listenFor:    commandListenTimeout,
+        pauseFor:     const Duration(seconds: 2),
+        localeId:     'en_US',
+        cancelOnError: false,
+      );
+    } catch (e) {
+      logger.log('Command listen error: $e');
+    } finally {
+      _isStarting = false;
+    }
   }
 
   void _dispatchCommand(String command) {
@@ -211,8 +241,10 @@ class WakeWordService {
   /// Call this after the command has been fully processed to resume wake-listening.
   void resumeListening() {
     if (_running) {
+      _isStarting = true; // Block _onStatus from racing
       _speech.stop().then((_) {
-        Future.delayed(const Duration(milliseconds: 300), _listenForWakeWord);
+        _isStarting = false;
+        Future.delayed(const Duration(milliseconds: 400), _listenForWakeWord);
       });
     }
   }
