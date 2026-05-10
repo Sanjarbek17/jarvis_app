@@ -1,0 +1,63 @@
+# AI Screenshot Reading Implementation Plan
+
+This plan outlines the steps to enable the "Jarvis" AI to read and understand the phone's screen by capturing screenshots and processing them using a vision-capable AI model.
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Vision Model Selection**: To "read" screenshots, we need a vision-capable model. I recommend `qwen2-vl:2b` as it is highly efficient and optimized for document/screen understanding.
+> **Disk Space**: Pulling `qwen2-vl:2b` will require approximately 1.5GB to 2GB of disk space in your Ollama container.
+> **Hardware Requirements**: Running vision models locally requires more RAM/GPU memory than the text-only `qwen2.5:0.5b` model.
+
+## Proposed Changes
+
+### 1. Backend (Ollama)
+We need to pull a vision-capable model to handle image inputs.
+
+#### Instructions
+Run the following command in your terminal:
+```bash
+docker exec -it ollama ollama pull qwen2-vl:2b
+```
+
+---
+
+### 2. Frontend (Android Platform)
+
+#### [MODIFY] [PhoneControlAccessibilityService.kt](file:///Users/sanjarbek/dev/frontend/controller_phone/android/app/src/main/kotlin/com/example/controller_phone/PhoneControlAccessibilityService.kt)
+- Add a `captureScreenshot` method that uses the `AccessibilityService.takeScreenshot` API.
+- Convert the screenshot to a Base64-encoded string to send back to Flutter.
+
+#### [MODIFY] [MainActivity.kt](file:///Users/sanjarbek/dev/frontend/controller_phone/android/app/src/main/kotlin/com/example/controller_phone/MainActivity.kt)
+- Add a new `captureScreenshot` case to the `MethodChannel` handler to bridge the call between Flutter and the Accessibility Service.
+
+---
+
+### 3. Frontend (Flutter)
+
+#### [MODIFY] [screen_reader_service.dart](file:///Users/sanjarbek/dev/frontend/controller_phone/lib/services/screen_reader_service.dart)
+- Add `captureScreenshot()` method to invoke the platform-specific capture.
+
+#### [MODIFY] [qwen_ai_service.dart](file:///Users/sanjarbek/dev/frontend/controller_phone/lib/services/qwen_ai_service.dart)
+- Update `_model` to `qwen2-vl:2b` (or make it configurable).
+- Update `getAction` to accept an optional `base64Image`.
+- Format the Ollama API request to include the image in the message list.
+
+---
+
+### 4. Integration (Control Logic)
+
+#### [MODIFY] [control_page.dart](file:///Users/sanjarbek/dev/frontend/controller_phone/lib/pages/control_page.dart)
+- Trigger screenshot capture before calling the AI when a vision-heavy command is detected (or by default for better accuracy).
+
+## Verification Plan
+
+### Automated Tests
+- N/A (Requires physical Android device or Emulator with Accessibility Service enabled).
+
+### Manual Verification
+1. Start Ollama and pull `qwen2-vl:2b`.
+2. Deploy the updated Flutter app.
+3. Enable Accessibility Service for the app.
+4. Give a command like "What do you see on my screen?" or "Read the notification".
+5. Verify that the AI response correctly describes the visual elements of the screen.
