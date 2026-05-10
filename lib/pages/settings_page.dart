@@ -11,6 +11,7 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   final _ipController = TextEditingController();
   final _portController = TextEditingController();
+  final _modelController = TextEditingController();
   bool _useHttps = false;
   bool _isSaving = false;
 
@@ -19,6 +20,7 @@ class _SettingsPageState extends State<SettingsPage> {
     super.initState();
     _ipController.text = QwenAIService.macIp;
     _portController.text = QwenAIService.port.toString();
+    _modelController.text = QwenAIService.model;
     _useHttps = QwenAIService.useHttps;
   }
 
@@ -26,22 +28,24 @@ class _SettingsPageState extends State<SettingsPage> {
   void dispose() {
     _ipController.dispose();
     _portController.dispose();
+    _modelController.dispose();
     super.dispose();
   }
 
   Future<void> _saveSettings() async {
     final ip = _ipController.text.trim();
     final port = int.tryParse(_portController.text.trim());
+    final model = _modelController.text.trim();
 
-    if (ip.isEmpty || port == null) {
+    if (ip.isEmpty || port == null || model.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter valid IP and Port')),
+        const SnackBar(content: Text('Please enter valid IP, Port and Model name')),
       );
       return;
     }
 
     setState(() => _isSaving = true);
-    await QwenAIService.updateConfig(ip, port, _useHttps);
+    await QwenAIService.updateConfig(ip, port, _useHttps, model);
     setState(() => _isSaving = false);
 
     if (mounted) {
@@ -100,6 +104,18 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               style: const TextStyle(color: Colors.white),
               keyboardType: TextInputType.number,
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: _modelController,
+              decoration: const InputDecoration(
+                labelText: 'Model Name',
+                labelStyle: TextStyle(color: Colors.white70),
+                hintText: 'e.g. qwen2.5:0.5b',
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.blue)),
+              ),
+              style: const TextStyle(color: Colors.white),
             ),
             const SizedBox(height: 24),
             SwitchListTile(

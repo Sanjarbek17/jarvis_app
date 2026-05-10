@@ -13,11 +13,12 @@ class QwenAIService {
   static String _macIp = '192.168.43.104'; // Default Mac's LAN IP
   static int _port = 11434;
   static bool _useHttps = false;
-  static const String _model = 'qwen2.5:0.5b';
+  static String _model = 'qwen2.5:0.5b';
 
   static String get macIp => _macIp;
   static int get port => _port;
   static bool get useHttps => _useHttps;
+  static String get model => _model;
   static String get _baseUrl => '${_useHttps ? 'https' : 'http'}://$_macIp:$_port';
 
   // ── Initialisation ──────────────────────────────────────────────────────────
@@ -28,6 +29,7 @@ class QwenAIService {
     _macIp = prefs.getString('ollama_ip') ?? '192.168.43.104';
     _port = prefs.getInt('ollama_port') ?? 11434;
     _useHttps = prefs.getBool('ollama_https') ?? false;
+    _model = prefs.getString('ollama_model') ?? 'qwen2.5:0.5b';
 
     logger.log('AI: Checking Ollama at $_baseUrl ...');
     try {
@@ -52,14 +54,16 @@ class QwenAIService {
     }
   }
 
-  static Future<void> updateConfig(String ip, int port, bool useHttps) async {
+  static Future<void> updateConfig(String ip, int port, bool useHttps, String model) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('ollama_ip', ip);
     await prefs.setInt('ollama_port', port);
     await prefs.setBool('ollama_https', useHttps);
+    await prefs.setString('ollama_model', model);
     _macIp = ip;
     _port = port;
     _useHttps = useHttps;
+    _model = model;
     _isInitialized = false; // Force re-initialization with new config
     await initialize();
   }
