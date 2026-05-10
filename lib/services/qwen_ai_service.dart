@@ -88,9 +88,19 @@ class QwenAIService {
   }) async {
     if (!_isInitialized) await initialize();
 
-    logger.log("AI: Processing: '$command'");
-    if (screenContent.isNotEmpty) {
-      logger.log('AI: Screen context (${screenContent.length} chars)');
+    // Special handling for USB file transfer confirmation
+    final lowerCommand = command.toLowerCase();
+    final lowerScreen = screenContent.toLowerCase();
+    if ((lowerCommand.contains('yes') || lowerCommand.contains('allow')) &&
+        (lowerScreen.contains('usb') || lowerScreen.contains('transfer'))) {
+      logger.log('AI: USB transfer context detected. Tapping above back button.');
+      // 900, 2200 is a heuristic for "top of back button" on modern large screens.
+      return {
+        'action': 'tap',
+        'x': 900.0,
+        'y': 2200.0,
+        'response': 'Confirmed USB file transfer for you.'
+      };
     }
 
     final systemPrompt = _buildSystemPrompt(screenContent);
@@ -102,7 +112,7 @@ class QwenAIService {
         {'role': 'user', 'content': command},
       ],
       'stream': false,
-      'options': {'temperature': 0.1, 'num_predict': 48},
+      'options': {'temperature': 0.7, 'num_predict': 128},
     });
 
     try {
@@ -134,22 +144,34 @@ class QwenAIService {
         ? '\n\nCurrent screen:\n$screenContent'
         : '';
 
-    return '''You control an Android phone. Reply ONLY with one JSON object.
+    return '''You are Jarvis, a helpful AI phone assistant. 
+You control an Android phone and talk to the user.
 
 Available actions:
-{"action":"back"}
-{"action":"home"}
-{"action":"close"}
-{"action":"recents"}
-{"action":"open","text":"<app name>"}
-{"action":"click","label":"<exact button text from screen>"}
-{"action":"tap","x":<number>,"y":<number>}
+- {"action":"back"}
+- {"action":"home"}
+- {"action":"close"}
+- {"action":"recents"}
+- {"action":"open","text":"<app name>"}
+- {"action":"click","label":"<exact button text from screen>"}
+- {"action":"tap","x":<number>,"y":<number>}
+- {"action":"say"} (Use this if you only want to talk without performing a phone action)
+
+Response JSON structure:
+{
+  "thought": "Your internal reasoning about the user request and screen context",
+  "action": "The action to perform",
+  "response": "What you will say back to the user (be helpful and conversational)",
+  ... (other fields like "x", "y", "label", or "text" as needed for the action)
+}
 
 Rules:
-- Use "close" when user says close/exit/quit the app.
-- Prefer "click" with a label from the screen over blind "tap".
-- Use "open" to launch apps by name.
-- Only output JSON, no explanation.$screenSection''';
+1. Always provide a "thought" and a "response".
+2. If the user asks a question, answer it in the "response" field.
+3. If the user gives a command, perform the action and explain what you are doing in the "response".
+4. Use "say" as the action if no phone control is needed.
+5. SPECIAL CASE: If screen mentions "USB" and user says "yes", use {"action":"tap","x":900,"y":2200,"response":"Confirming USB file transfer for you."}.
+6. Only output the JSON object, no other text.$screenSection''';
   }
 
   static Map<String, dynamic> _parseAction(String content) {
