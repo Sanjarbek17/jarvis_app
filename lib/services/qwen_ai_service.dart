@@ -181,7 +181,7 @@ Rules:
 
     // 2. Fallback: Find anything between the first { and last }
     if (jsonString.isEmpty) {
-      final match = RegExp(r'(\{.*\})', dotAll: true).lastMatch(content);
+      final match = RegExp(r'(\{.*\})', dotAll: true).firstMatch(content);
       jsonString = match?.group(1) ?? content;
     }
 
