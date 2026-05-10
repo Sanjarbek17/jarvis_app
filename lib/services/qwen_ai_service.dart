@@ -88,13 +88,12 @@ class QwenAIService {
   }) async {
     if (!_isInitialized) await initialize();
 
-    // Special handling for USB file transfer confirmation
+    // 1. Hardcoded special cases (fast path)
     final lowerCommand = command.toLowerCase();
     final lowerScreen = screenContent.toLowerCase();
     if ((lowerCommand.contains('yes') || lowerCommand.contains('allow')) &&
         (lowerScreen.contains('usb') || lowerScreen.contains('transfer'))) {
       logger.log('AI: USB transfer context detected. Tapping above back button.');
-      // 900, 2200 is a heuristic for "top of back button" on modern large screens.
       return {
         'action': 'tap',
         'x': 900.0,
@@ -103,75 +102,86 @@ class QwenAIService {
       };
     }
 
-    final systemPrompt = _buildSystemPrompt(screenContent);
+    try {
+      // 2. Step 1: Thinking phase
+      logger.log("AI: --- Phase 1: Thinking ---");
+      final thought = await _getThought(command, screenContent);
+      logger.log("AI: Thought → $thought");
 
+      // 3. Step 2: Action phase (Convert thought to JSON)
+      logger.log("AI: --- Phase 2: Action ---");
+      final actionContent = await _getActionJson(command, screenContent, thought);
+      logger.log("AI: Raw JSON response → $actionContent");
+
+      return _parseAction(actionContent);
+    } catch (e) {
+      logger.log('AI Error: $e');
+      return {'action': 'error', 'message': 'I encountered a problem thinking about that.'};
+    }
+  }
+
+  // ── Step 1: Thinking ───────────────────────────────────────────────────────
+
+  static Future<String> _getThought(String command, String screenContent) async {
+    final systemPrompt = '''You are Jarvis, an AI phone assistant. 
+Analyze the user's request and the current screen. 
+Think step-by-step about what phone action is needed (back, home, close, recents, open, click, or tap).
+Explain your reasoning clearly.
+
+Current screen content:
+$screenContent''';
+
+    return _ollamaChat(systemPrompt, command, temperature: 0.7);
+  }
+
+  // ── Step 2: Action Generation ──────────────────────────────────────────────
+
+  static Future<String> _getActionJson(String command, String screenContent, String thought) async {
+    final systemPrompt = '''Based on your previous reasoning, output the final command in JSON format.
+Reply ONLY with the JSON object. No explanation.
+
+Required structure:
+{
+  "action": "one of: back, home, close, recents, open, click, tap, say",
+  "response": "What you say back to the user",
+  "label": "exact text if clicking",
+  "text": "app name if opening",
+  "x": number, "y": number (if tapping)
+}
+
+Reasoning to follow:
+$thought''';
+
+    final userPrompt = "Generate the JSON for: '$command'";
+    return _ollamaChat(systemPrompt, userPrompt, temperature: 0.1);
+  }
+
+  // ── Ollama HTTP Helper ─────────────────────────────────────────────────────
+
+  static Future<String> _ollamaChat(String system, String user, {double temperature = 0.1}) async {
     final body = jsonEncode({
       'model': _model,
       'messages': [
-        {'role': 'system', 'content': systemPrompt},
-        {'role': 'user', 'content': command},
+        {'role': 'system', 'content': system},
+        {'role': 'user', 'content': user},
       ],
       'stream': false,
-      'options': {'temperature': 0.7, 'num_predict': 512},
+      'options': {'temperature': temperature, 'num_predict': 256},
     });
 
-    try {
-      final response = await http
-          .post(
-            Uri.parse('$_baseUrl/api/chat'),
-            headers: {'Content-Type': 'application/json'},
-            body: body,
-          )
-          .timeout(const Duration(seconds: 15));
+    final response = await http
+        .post(
+          Uri.parse('$_baseUrl/api/chat'),
+          headers: {'Content-Type': 'application/json'},
+          body: body,
+        )
+        .timeout(const Duration(seconds: 15));
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
-        final content = data['message']?['content'] as String? ?? '';
-        logger.log('AI: Raw response: $content');
-        return _parseAction(content);
-      }
-      logger.log('AI: HTTP ${response.statusCode}');
-    } catch (e) {
-      logger.log('AI Error: $e');
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return data['message']?['content'] as String? ?? '';
     }
-    return {'action': 'error', 'message': 'Ollama request failed'};
-  }
-
-  // ── Private helpers ─────────────────────────────────────────────────────────
-
-  static String _buildSystemPrompt(String screenContent) {
-    final screenSection = screenContent.isNotEmpty
-        ? '\n\nCurrent screen:\n$screenContent'
-        : '';
-
-    return '''You are Jarvis, a helpful AI phone assistant. 
-You control an Android phone and talk to the user.
-
-Available actions:
-- {"action":"back"}
-- {"action":"home"}
-- {"action":"close"}
-- {"action":"recents"}
-- {"action":"open","text":"<app name>"}
-- {"action":"click","label":"<exact button text from screen>"}
-- {"action":"tap","x":<number>,"y":<number>}
-- {"action":"say"} (Use this if you only want to talk without performing a phone action)
-
-Response JSON structure:
-{
-  "thought": "Your internal reasoning about the user request and screen context",
-  "action": "The action to perform",
-  "response": "What you will say back to the user (be helpful and conversational)",
-  ... (other fields like "x", "y", "label", or "text" as needed for the action)
-}
-
-Rules:
-1. Always provide a "thought" and a "response".
-2. If the user asks a question, answer it in the "response" field.
-3. If the user gives a command, perform the action and explain what you are doing in the "response".
-4. Use "say" as the action if no phone control is needed.
-5. SPECIAL CASE: If screen mentions "USB" and user says "yes", use {"action":"tap","x":900,"y":2200,"response":"Confirming USB file transfer for you."}.
-6. Only output the JSON object, no other text.$screenSection''';
+    throw Exception('Ollama HTTP ${response.statusCode}');
   }
 
   static Map<String, dynamic> _parseAction(String content) {
