@@ -69,6 +69,9 @@ class WakeWordService {
       },
     );
     logger.log('WakeWordService init: ${_isAvailable ? 'OK' : 'FAILED'}');
+    if (!_isAvailable) {
+      ttsService.speak("Voice detection failed to initialize. Please check permissions.");
+    }
     return _isAvailable;
   }
 

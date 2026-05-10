@@ -47,7 +47,7 @@ class ActionExecutorService {
           final clicked = await _platform.invokeMethod<bool>('clickByLabel', {'label': label});
           if (clicked == true) return 'Clicked "$label"';
           logger.log('ActionExecutor: label "$label" not found on screen');
-          return 'Button "$label" not found';
+          return 'I couldn\'t find the "$label" button on the screen.';
 
         case 'open':
           final appName = action['text'] as String? ?? '';
@@ -55,10 +55,10 @@ class ActionExecutorService {
           final launched = await _platform.invokeMethod<bool>('launchApp', {'name': appName});
           if (launched == true) return 'Opened $appName';
           logger.log('ActionExecutor: app "$appName" not found');
-          return 'App "$appName" not found';
+          return 'I couldn\'t find the $appName app on your phone.';
 
         case 'error':
-          return action['message'] as String? ?? 'AI error';
+          return action['message'] as String? ?? 'I encountered an AI error.';
 
         default:
           logger.log('ActionExecutor: unknown action "$type"');
