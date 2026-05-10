@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'log_service.dart';
 
 /// Single responsibility: communicate with the local Ollama AI server.
@@ -9,16 +10,25 @@ import 'log_service.dart';
 class QwenAIService {
   static bool _isInitialized = false;
 
-  static const String _macIp = '192.168.43.104'; // Mac's LAN IP
-  static String get macIp => _macIp;
-  static const int _port = 11434;
+  static String _macIp = '192.168.43.104'; // Default Mac's LAN IP
+  static int _port = 11434;
+  static bool _useHttps = false;
   static const String _model = 'qwen2.5:0.5b';
-  static const String _baseUrl = 'http://$_macIp:$_port';
+
+  static String get macIp => _macIp;
+  static int get port => _port;
+  static bool get useHttps => _useHttps;
+  static String get _baseUrl => '${_useHttps ? 'https' : 'http'}://$_macIp:$_port';
 
   // ── Initialisation ──────────────────────────────────────────────────────────
 
   static Future<void> initialize() async {
-    if (_isInitialized) return;
+    // Load config from preferences
+    final prefs = await SharedPreferences.getInstance();
+    _macIp = prefs.getString('ollama_ip') ?? '192.168.43.104';
+    _port = prefs.getInt('ollama_port') ?? 11434;
+    _useHttps = prefs.getBool('ollama_https') ?? false;
+
     logger.log('AI: Checking Ollama at $_baseUrl ...');
     try {
       final response = await http
@@ -40,6 +50,18 @@ class QwenAIService {
     } catch (e) {
       logger.log('AI: Cannot reach Ollama — $e');
     }
+  }
+
+  static Future<void> updateConfig(String ip, int port, bool useHttps) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('ollama_ip', ip);
+    await prefs.setInt('ollama_port', port);
+    await prefs.setBool('ollama_https', useHttps);
+    _macIp = ip;
+    _port = port;
+    _useHttps = useHttps;
+    _isInitialized = false; // Force re-initialization with new config
+    await initialize();
   }
 
   // ── Inference ───────────────────────────────────────────────────────────────
