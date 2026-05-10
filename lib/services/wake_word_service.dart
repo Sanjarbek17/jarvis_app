@@ -110,7 +110,7 @@ class WakeWordService {
   void _onStatus(String status) {
     // When STT goes idle/notListening, restart automatically so we're always on
     if ((status == 'notListening' || status == 'done') && _running) {
-      // Small delay to let the engine settle before restarting
+      logger.log('WakeWord: Engine stopped ($status). Restarting in 800ms...');
       _restartTimer?.cancel();
       _restartTimer = Timer(const Duration(milliseconds: 800), () {
         // Only restart if we are still running, not already listening, 
@@ -176,13 +176,15 @@ class WakeWordService {
         .replaceAll(RegExp(r'[,.]'), '')
         .trim();
 
-    _isStarting = false; // Release lock
-
     if (afterWake.length > 2) {
       logger.log('WakeWord: Inline command detected: "$afterWake"');
+      _isStarting = false; // Release lock before dispatch
       Future.delayed(const Duration(milliseconds: 300), () => _dispatchCommand(afterWake));
     } else {
-      // Jarvis finished speaking, now we can safely start listening for command
+      // Jarvis finished speaking. 
+      // IMPORTANT: Wait for audio session to fully transition from TTS to STT
+      await Future.delayed(const Duration(milliseconds: 500));
+      _isStarting = false; // Release lock
       _listenForCommand();
     }
   }

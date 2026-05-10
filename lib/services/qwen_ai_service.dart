@@ -112,7 +112,7 @@ class QwenAIService {
         {'role': 'user', 'content': command},
       ],
       'stream': false,
-      'options': {'temperature': 0.7, 'num_predict': 128},
+      'options': {'temperature': 0.7, 'num_predict': 512},
     });
 
     try {
@@ -175,15 +175,33 @@ Rules:
   }
 
   static Map<String, dynamic> _parseAction(String content) {
-    final match = RegExp(r'\{.*\}', dotAll: true).firstMatch(content);
-    if (match != null) {
+    // 1. Try to find JSON block in markdown code fences
+    final codeBlockMatch = RegExp(r'```(?:json)?\s*(\{.*?\})\s*```', dotAll: true).firstMatch(content);
+    String jsonString = codeBlockMatch?.group(1) ?? '';
+
+    // 2. Fallback: Find anything between the first { and last }
+    if (jsonString.isEmpty) {
+      final match = RegExp(r'(\{.*\})', dotAll: true).lastMatch(content);
+      jsonString = match?.group(1) ?? content;
+    }
+
+    try {
+      final result = jsonDecode(jsonString.trim()) as Map<String, dynamic>;
+      logger.log("AI: Action → ${result['action']}");
+      return result;
+    } catch (e) {
+      logger.log('AI: JSON parse error: $e. Content: $content');
+      // If parsing fails, try one more aggressive cleanup: find the first { and last } manually
       try {
-        final result = jsonDecode(match.group(0)!) as Map<String, dynamic>;
-        logger.log("AI: Action → ${result['action']}");
-        return result;
+        final start = jsonString.indexOf('{');
+        final end = jsonString.lastIndexOf('}');
+        if (start != -1 && end != -1) {
+          final cleaned = jsonString.substring(start, end + 1);
+          return jsonDecode(cleaned) as Map<String, dynamic>;
+        }
       } catch (_) {}
     }
-    logger.log('AI: Could not parse JSON from: $content');
-    return {'action': 'error', 'message': 'Could not parse response'};
+    
+    return {'action': 'error', 'message': 'I couldn\'t understand the AI\'s response format.'};
   }
 }
