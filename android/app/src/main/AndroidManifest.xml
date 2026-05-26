@@ -9,6 +9,7 @@
         android:label="controller_phone"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true"
         android:largeHeap="true">
         <service
             android:name=".PhoneControlAccessibilityService"

@@ -135,6 +135,7 @@ class _ControlPageState extends State<ControlPage> with SingleTickerProviderStat
                   isAccessibilityEnabled: _isAccessibilityEnabled,
                   isRemoteConnected: isConnected,
                   onRequestAccessibility: PlatformUtil.openAccessibilitySettings,
+                  onRequestRemote: remoteControlClient.connect,
                   onSettingsReturned: () => setState(() {}),
                 );
               },

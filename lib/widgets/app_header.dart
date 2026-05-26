@@ -6,6 +6,7 @@ class AppHeader extends StatelessWidget {
   final bool isAccessibilityEnabled;
   final bool isRemoteConnected;
   final VoidCallback onRequestAccessibility;
+  final VoidCallback onRequestRemote;
   final VoidCallback? onSettingsReturned;
 
   const AppHeader({
@@ -13,6 +14,7 @@ class AppHeader extends StatelessWidget {
     required this.isAccessibilityEnabled,
     required this.isRemoteConnected,
     required this.onRequestAccessibility,
+    required this.onRequestRemote,
     this.onSettingsReturned,
   });
 
@@ -54,7 +56,7 @@ class AppHeader extends StatelessWidget {
               const SizedBox(width: 8),
               StatusIndicator(
                 isEnabled: isRemoteConnected,
-                onRequest: () {},
+                onRequest: onRequestRemote,
                 label: 'Remote',
               ),
               const SizedBox(width: 8),

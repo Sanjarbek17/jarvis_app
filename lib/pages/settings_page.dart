@@ -14,8 +14,6 @@ class _SettingsPageState extends State<SettingsPage> {
   final _ipController = TextEditingController();
   final _portController = TextEditingController();
   final _modelController = TextEditingController();
-  final _sttUrlController = TextEditingController();
-  final _sttModelController = TextEditingController();
   bool _useHttps = false;
   bool _isSaving = false;
 
@@ -26,17 +24,6 @@ class _SettingsPageState extends State<SettingsPage> {
     _portController.text = QwenAIService.port.toString();
     _modelController.text = QwenAIService.model;
     _useHttps = QwenAIService.useHttps;
-    _loadSttConfig();
-  }
-
-  Future<void> _loadSttConfig() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _sttUrlController.text =
-          prefs.getString('stt_server_url') ??
-          'http://95.46.161.3:8112/transcribe';
-      _sttModelController.text = prefs.getString('stt_model') ?? 'whisper-1';
-    });
   }
 
   @override
@@ -44,8 +31,6 @@ class _SettingsPageState extends State<SettingsPage> {
     _ipController.dispose();
     _portController.dispose();
     _modelController.dispose();
-    _sttUrlController.dispose();
-    _sttModelController.dispose();
     super.dispose();
   }
 
@@ -53,10 +38,8 @@ class _SettingsPageState extends State<SettingsPage> {
     final ip = _ipController.text.trim();
     final port = int.tryParse(_portController.text.trim());
     final model = _modelController.text.trim();
-    final sttUrl = _sttUrlController.text.trim();
-    final sttModel = _sttModelController.text.trim();
 
-    if (ip.isEmpty || port == null || model.isEmpty || sttUrl.isEmpty) {
+    if (ip.isEmpty || port == null || model.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill all fields correctly')),
       );
@@ -65,11 +48,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
     setState(() => _isSaving = true);
     await QwenAIService.updateConfig(ip, port, _useHttps, model);
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('stt_server_url', sttUrl);
-    await prefs.setString('stt_model', sttModel);
-    await SttService.initialize();
 
     setState(() => _isSaving = false);
 
@@ -169,48 +147,6 @@ class _SettingsPageState extends State<SettingsPage> {
               },
               activeThumbColor: Colors.blue,
               contentPadding: EdgeInsets.zero,
-            ),
-            const SizedBox(height: 40),
-            const Text(
-              'SELF-HOSTED STT (WHISPER)',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 2,
-                color: Colors.orangeAccent,
-              ),
-            ),
-            const SizedBox(height: 24),
-            TextField(
-              controller: _sttUrlController,
-              decoration: const InputDecoration(
-                labelText: 'Whisper Server URL',
-                labelStyle: TextStyle(color: Colors.white70),
-                hintText: 'http://.../transcribe',
-                enabledBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: Colors.white24),
-                ),
-                focusedBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: Colors.orangeAccent),
-                ),
-              ),
-              style: const TextStyle(color: Colors.white),
-            ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: _sttModelController,
-              decoration: const InputDecoration(
-                labelText: 'Whisper Model',
-                labelStyle: TextStyle(color: Colors.white70),
-                hintText: 'whisper-1',
-                enabledBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: Colors.white24),
-                ),
-                focusedBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: Colors.orangeAccent),
-                ),
-              ),
-              style: const TextStyle(color: Colors.white),
             ),
             const SizedBox(height: 40),
             SizedBox(
