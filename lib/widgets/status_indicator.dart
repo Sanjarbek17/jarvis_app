@@ -18,7 +18,7 @@ class StatusIndicator extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: isEnabled ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+            color: isEnabled ? Colors.green.withValues(alpha: 0.1) : Colors.red.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isEnabled ? Colors.green.shade400 : Colors.red.shade400,

@@ -80,8 +80,11 @@ class _ControlPageState extends State<ControlPage> with SingleTickerProviderStat
             _aiStatus = 'AI Thinking...';
           }
         });
-        if (state == WakeState.idle) _pulseController.stop();
-        else _pulseController.repeat(reverse: true);
+        if (state == WakeState.idle) {
+          _pulseController.stop();
+        } else {
+          _pulseController.repeat(reverse: true);
+        }
       };
 
       wakeWordService.onCommandDetected = (command) {

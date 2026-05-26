@@ -32,7 +32,7 @@ class TranscriptionArea extends StatelessWidget {
                 boxShadow: [
                   if (wakeState != WakeState.idle)
                     BoxShadow(
-                      color: Colors.blue.withOpacity(0.3),
+                      color: Colors.blue.withValues(alpha: 0.3),
                       blurRadius: 20 * pulseAnimation.value,
                       spreadRadius: 10 * pulseAnimation.value,
                     ),

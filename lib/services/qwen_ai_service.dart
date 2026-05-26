@@ -10,7 +10,7 @@ import 'log_service.dart';
 class QwenAIService {
   static bool _isInitialized = false;
 
-  static String _macIp = '192.168.43.104'; // Default Mac's LAN IP
+  static String _macIp = '95.46.161.3'; // Default Mac's LAN IP
   static int _port = 11434;
   static bool _useHttps = false;
   static String _model = 'qwen3:0.6b';

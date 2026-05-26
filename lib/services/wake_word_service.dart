@@ -23,7 +23,7 @@ class WakeWordService {
   // ── Configuration ──────────────────────────────────────────────────────────
   static const String wakeWord = 'jarvis';
   static const Duration commandMaxDuration = Duration(seconds: 7);
-  static const Duration silenceDuration = Duration(milliseconds: 1500);
+  static const Duration silenceDuration = Duration(milliseconds: 2500);
 
   static const _platform = MethodChannel('com.example.controller_phone/voice_control');
 
@@ -133,7 +133,6 @@ class WakeWordService {
         },
         listenFor: const Duration(seconds: 30),
         pauseFor: const Duration(seconds: 3),
-        localeId: 'en_US',
         cancelOnError: false,
       );
     } catch (e) {
