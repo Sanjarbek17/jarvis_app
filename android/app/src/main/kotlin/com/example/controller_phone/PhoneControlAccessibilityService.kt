@@ -2,10 +2,15 @@ package com.example.controller_phone
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.graphics.Bitmap
 import android.graphics.Path
+import android.os.Build
+import android.view.Display
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.util.Log
+import java.io.ByteArrayOutputStream
+import java.util.concurrent.Executors
 
 /// Single responsibility: interact with the Android Accessibility framework.
 /// Provides: global actions, gesture taps, screen content reading, click-by-label.
@@ -25,6 +30,48 @@ class PhoneControlAccessibilityService : AccessibilityService() {
     fun performBack()    = performGlobalAction(GLOBAL_ACTION_BACK)
     fun performHome()    = performGlobalAction(GLOBAL_ACTION_HOME)
     fun performRecents() = performGlobalAction(GLOBAL_ACTION_RECENTS)
+
+    @androidx.annotation.RequiresApi(android.os.Build.VERSION_CODES.R)
+    @android.annotation.SuppressLint("NewApi")
+    fun takeScreenshot(callback: (ByteArray?) -> Unit) {
+        val executor = Executors.newSingleThreadExecutor()
+        takeScreenshot(
+            Display.DEFAULT_DISPLAY,
+            executor,
+            object : AccessibilityService.TakeScreenshotCallback {
+                override fun onSuccess(result: AccessibilityService.ScreenshotResult) {
+                    try {
+                        // Use reflection to avoid API-level compile errors on ScreenshotResult
+                        val hardwareBitmap = result.javaClass
+                            .getMethod("getHardwareBitmap")
+                            .invoke(result) as Bitmap
+                        val softBitmap = hardwareBitmap.copy(Bitmap.Config.ARGB_8888, false)
+                        hardwareBitmap.recycle()
+                        val stream = ByteArrayOutputStream()
+                        softBitmap.compress(Bitmap.CompressFormat.PNG, 90, stream)
+                        softBitmap.recycle()
+                        callback(stream.toByteArray())
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Screenshot compress failed: ${e.message}")
+                        callback(null)
+                    }
+                }
+                override fun onFailure(errorCode: Int) {
+                    Log.e(TAG, "Screenshot failed with error: $errorCode")
+                    callback(null)
+                }
+            }
+        )
+    }
+
+    fun takeScreenshotCompat(callback: (ByteArray?) -> Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            takeScreenshot(callback)
+        } else {
+            Log.e(TAG, "takeScreenshot requires API 30+")
+            callback(null)
+        }
+    }
 
     fun performTap(x: Float, y: Float) {
         val path = Path().also { it.moveTo(x, y) }

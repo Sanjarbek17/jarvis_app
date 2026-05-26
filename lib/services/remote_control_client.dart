@@ -60,6 +60,16 @@ class RemoteControlClient {
     });
   }
 
+  void sendScreenshot(String base64Png) {
+    if (_channel == null || !isConnected.value) {
+      logger.log('sendScreenshot: not connected, cannot send screenshot');
+      return;
+    }
+    final msg = jsonEncode({'type': 'screenshot', 'data': base64Png});
+    _channel!.sink.add(msg);
+    logger.log('Screenshot sent to server (${base64Png.length} chars base64)');
+  }
+
   void disconnect() {
     _reconnectTimer?.cancel();
     _channel?.sink.close();

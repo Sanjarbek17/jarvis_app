@@ -14,6 +14,7 @@ import android.media.AudioManager
 import java.lang.reflect.Method
 import android.view.KeyEvent
 import android.app.Instrumentation
+import android.util.Base64
 
 class VoiceControlPlugin: FlutterPlugin, MethodCallHandler {
   private lateinit var channel : MethodChannel
@@ -161,6 +162,19 @@ class VoiceControlPlugin: FlutterPlugin, MethodCallHandler {
                 if (service == null) return result.success("[accessibility service not connected]")
                 val content = service.javaClass.getMethod("getScreenContent").invoke(service) as? String ?: "[accessibility service not connected]"
                 result.success(content)
+            }
+            "takeScreenshot" -> {
+                if (service == null) return result.success(null)
+                // Invoke takeScreenshotCompat(callback) via reflection
+                val method = service.javaClass.getMethod("takeScreenshotCompat", Function1::class.java)
+                method.invoke(service, { bytes: ByteArray? ->
+                    if (bytes != null) {
+                        val b64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                        result.success(b64)
+                    } else {
+                        result.success(null)
+                    }
+                })
             }
             "closeCurrentApp" -> {
                 if (service == null) return result.success(false)

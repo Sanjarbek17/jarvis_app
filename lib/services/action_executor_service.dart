@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 import 'log_service.dart';
+import 'remote_control_client.dart';
 
 /// Single responsibility: execute phone control actions via the platform channel.
 ///
@@ -26,6 +27,17 @@ class ActionExecutorService {
         case 'home':
           final res = await _platform.invokeMethod('performHome');
           result = 'Went to home screen: $res';
+          break;
+
+        case 'screenshot':
+          logger.log('ActionExecutor: taking screenshot');
+          final b64 = await _platform.invokeMethod<String>('takeScreenshot');
+          if (b64 != null && b64.isNotEmpty) {
+            remoteControlClient.sendScreenshot(b64);
+            result = 'Screenshot captured and sent';
+          } else {
+            result = 'Screenshot failed (accessibility service may not be connected)';
+          }
           break;
 
         case 'close':
