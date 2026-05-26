@@ -10,10 +10,10 @@ import 'log_service.dart';
 class QwenAIService {
   static bool _isInitialized = false;
 
-  static String _macIp = '95.46.161.3'; // Default Mac's LAN IP
-  static int _port = 11434;
+  static String _macIp = '95.46.161.3'; // Global IP for madaniyat server
+  static int _port = 10005;
   static bool _useHttps = false;
-  static String _model = 'qwen3:0.6b';
+  static String _model = 'qwen2.5:0.5b';
 
   static String get macIp => _macIp;
   static int get port => _port;
@@ -28,7 +28,7 @@ class QwenAIService {
     // Load config from preferences
     final prefs = await SharedPreferences.getInstance();
     _macIp = prefs.getString('ollama_ip') ?? '95.46.161.3';
-    _port = prefs.getInt('ollama_port') ?? 8111;
+    _port = prefs.getInt('ollama_port') ?? 10005;
     _useHttps = prefs.getBool('ollama_https') ?? false;
     _model = prefs.getString('ollama_model') ?? 'qwen2.5:0.5b';
 

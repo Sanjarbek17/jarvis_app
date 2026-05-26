@@ -1,10 +1,6 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:speech_to_text/speech_to_text.dart';
-import 'package:record/record.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as p;
 import 'log_service.dart';
 import 'tts_service.dart';
 import 'stt_service.dart';
@@ -39,7 +35,6 @@ class WakeWordService {
 
   // ── State ──────────────────────────────────────────────────────────────────
   final SpeechToText _speech = SpeechToText();
-  final AudioRecorder _recorder = AudioRecorder();
   
   bool _isAvailable = false;
   bool _running = false;
@@ -85,7 +80,6 @@ class WakeWordService {
     _running = false;
     _cleanupTimers();
     await _speech.stop();
-    if (await _recorder.isRecording()) await _recorder.stop();
     _setState(WakeState.idle);
     logger.log('WakeWord: Stopped.');
   }
@@ -175,63 +169,31 @@ class WakeWordService {
   // ── High Quality Recording Phase ──────────────────────────────────────────
 
   Future<void> _startRecordingCommand() async {
-    if (!_running || await _recorder.isRecording()) return;
+    if (!_running) return;
+
+    logger.log('WakeWord: Listening for command via phone built-in STT...');
+    _setState(WakeState.awake);
 
     try {
-      final tempDir = await getTemporaryDirectory();
-      final path = p.join(tempDir.path, 'command.m4a');
-      
-      // Delete old file if exists
-      final oldFile = File(path);
-      if (await oldFile.exists()) await oldFile.delete();
-
-      logger.log('WakeWord: Recording command...');
-      _setState(WakeState.awake);
-
-      await _recorder.start(const RecordConfig(encoder: AudioEncoder.aacLc), path: path);
-
-      // 1. Max duration safety
-      _maxDurationTimer?.cancel();
-      _maxDurationTimer = Timer(commandMaxDuration, _stopAndProcessRecording);
-
-      // 2. Simple VAD (Silence detection)
-      _silenceTimer?.cancel();
-      _recorder.onAmplitudeChanged(const Duration(milliseconds: 200)).listen((amp) {
-        // -30dB to -40dB is usually a good threshold for silence in a quiet room
-        if (amp.current < -40) {
-          _silenceTimer ??= Timer(silenceDuration, _stopAndProcessRecording);
-        } else {
-          _silenceTimer?.cancel();
-          _silenceTimer = null;
-        }
-      });
-
+      await _speech.listen(
+        onResult: (result) {
+          // Check if speech has ended or if we have a finalized result
+          if (result.finalResult) {
+            final command = result.recognizedWords.trim();
+            if (command.isNotEmpty) {
+              _dispatchCommand(command);
+            } else {
+              logger.log('WakeWord: No speech detected in built-in STT.');
+              resumeListening();
+            }
+          }
+        },
+        listenFor: commandMaxDuration,
+        pauseFor: silenceDuration,
+        cancelOnError: true,
+      );
     } catch (e) {
-      logger.log('Recording error: $e');
-      _listenForWakeWord();
-    }
-  }
-
-  Future<void> _stopAndProcessRecording() async {
-    if (!await _recorder.isRecording()) return;
-
-    _cleanupTimers();
-    final path = await _recorder.stop();
-    
-    if (path == null) {
-      _listenForWakeWord();
-      return;
-    }
-
-    _setState(WakeState.processing);
-    logger.log('WakeWord: Transcribing audio...');
-
-    final text = await sttService.transcribe(path);
-    
-    if (text.trim().isNotEmpty) {
-      _dispatchCommand(text);
-    } else {
-      logger.log('WakeWord: No speech detected in recording.');
+      logger.log('Command listen error: $e');
       resumeListening();
     }
   }
