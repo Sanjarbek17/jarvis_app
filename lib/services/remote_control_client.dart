@@ -60,4 +60,4 @@ class RemoteControlClient {
 
 // Since the user is testing locally or on madaniyat, they can configure this URL.
 // Replace this with the madaniyat IP/domain or local IP when deploying.
-final remoteControlClient = RemoteControlClient(serverUrl: 'ws://madaniyat_pc:10555/ws');
+final remoteControlClient = RemoteControlClient(serverUrl: 'ws://95.46.161.3:10555/ws');
