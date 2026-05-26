@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'action_executor_service.dart';
 import 'log_service.dart';
@@ -8,6 +9,7 @@ class RemoteControlClient {
   WebSocketChannel? _channel;
   Timer? _reconnectTimer;
   final String serverUrl;
+  final ValueNotifier<bool> isConnected = ValueNotifier(false);
 
   RemoteControlClient({required this.serverUrl});
 
@@ -16,6 +18,10 @@ class RemoteControlClient {
       logger.log('Connecting to remote control server: $serverUrl');
       _channel = WebSocketChannel.connect(Uri.parse(serverUrl));
       
+      _channel!.ready.then((_) {
+        isConnected.value = true;
+      });
+
       _channel!.stream.listen(
         (message) async {
           logger.log('Received command from server: $message');
@@ -28,10 +34,12 @@ class RemoteControlClient {
         },
         onDone: () {
           logger.log('Remote control server disconnected.');
+          isConnected.value = false;
           _scheduleReconnect();
         },
         onError: (error) {
           logger.log('Remote control server error: $error');
+          isConnected.value = false;
           _scheduleReconnect();
         },
       );
@@ -55,6 +63,7 @@ class RemoteControlClient {
   void disconnect() {
     _reconnectTimer?.cancel();
     _channel?.sink.close();
+    isConnected.value = false;
   }
 }
 

@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 class StatusIndicator extends StatelessWidget {
   final bool isEnabled;
   final VoidCallback onRequest;
+  final String label;
 
   const StatusIndicator({
     super.key,
     required this.isEnabled,
     required this.onRequest,
+    this.label = 'Access',
   });
 
   @override
@@ -34,8 +36,8 @@ class StatusIndicator extends StatelessWidget {
                 color: isEnabled ? Colors.green.shade400 : Colors.red.shade400,
               ),
               const SizedBox(width: 6),
-              const Text(
-                'Access',
+              Text(
+                label,
                 style: TextStyle(
                   color: Colors.white70,
                   fontSize: 10,

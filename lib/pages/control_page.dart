@@ -5,6 +5,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../services/wake_word_service.dart';
 import '../services/qwen_ai_service.dart';
 import '../services/log_service.dart';
+import '../services/remote_control_client.dart';
 
 import '../widgets/app_header.dart';
 import '../widgets/transcription_area.dart';
@@ -127,10 +128,16 @@ class _ControlPageState extends State<ControlPage> with SingleTickerProviderStat
       body: SafeArea(
         child: Column(
           children: [
-            AppHeader(
-              isAccessibilityEnabled: _isAccessibilityEnabled,
-              onRequestAccessibility: PlatformUtil.openAccessibilitySettings,
-              onSettingsReturned: () => setState(() {}),
+            ValueListenableBuilder<bool>(
+              valueListenable: remoteControlClient.isConnected,
+              builder: (context, isConnected, child) {
+                return AppHeader(
+                  isAccessibilityEnabled: _isAccessibilityEnabled,
+                  isRemoteConnected: isConnected,
+                  onRequestAccessibility: PlatformUtil.openAccessibilitySettings,
+                  onSettingsReturned: () => setState(() {}),
+                );
+              },
             ),
             Expanded(
               child: SingleChildScrollView(

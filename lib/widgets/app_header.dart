@@ -4,12 +4,14 @@ import 'status_indicator.dart';
 
 class AppHeader extends StatelessWidget {
   final bool isAccessibilityEnabled;
+  final bool isRemoteConnected;
   final VoidCallback onRequestAccessibility;
   final VoidCallback? onSettingsReturned;
 
   const AppHeader({
     super.key,
     required this.isAccessibilityEnabled,
+    required this.isRemoteConnected,
     required this.onRequestAccessibility,
     this.onSettingsReturned,
   });
@@ -48,6 +50,12 @@ class AppHeader extends StatelessWidget {
               StatusIndicator(
                 isEnabled: isAccessibilityEnabled,
                 onRequest: onRequestAccessibility,
+              ),
+              const SizedBox(width: 8),
+              StatusIndicator(
+                isEnabled: isRemoteConnected,
+                onRequest: () {},
+                label: 'Remote',
               ),
               const SizedBox(width: 8),
               IconButton(
