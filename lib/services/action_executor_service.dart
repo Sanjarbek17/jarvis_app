@@ -24,8 +24,8 @@ class ActionExecutorService {
           break;
 
         case 'home':
-          await _platform.invokeMethod('performHome');
-          result = 'Went to home screen';
+          final res = await _platform.invokeMethod('performHome');
+          result = 'Went to home screen: $res';
           break;
 
         case 'close':
@@ -84,6 +84,7 @@ class ActionExecutorService {
           break;
       }
       
+      logger.log('ActionExecutor: Result = ${customResponse ?? result}');
       return customResponse ?? result;
     } on PlatformException catch (e) {
       logger.log('ActionExecutor: platform error — ${e.message}');

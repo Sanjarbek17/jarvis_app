@@ -12,6 +12,8 @@ import android.text.TextUtils
 import android.media.ToneGenerator
 import android.media.AudioManager
 import java.lang.reflect.Method
+import android.view.KeyEvent
+import android.app.Instrumentation
 
 class VoiceControlPlugin: FlutterPlugin, MethodCallHandler {
   private lateinit var channel : MethodChannel
@@ -26,10 +28,18 @@ class VoiceControlPlugin: FlutterPlugin, MethodCallHandler {
 
   private fun getServiceInstance(): Any? {
       return try {
-          val companionClass = Class.forName("com.example.controller_phone.PhoneControlAccessibilityService\$Companion")
-          val companionObj = companionClass.getField("INSTANCE").get(null)
-          companionClass.getMethod("getInstance").invoke(companionObj)
-      } catch (e: Exception) { null }
+          // Kotlin companion objects are stored as a static field named "Companion" on the outer class
+          val outerClass = Class.forName("com.example.controller_phone.PhoneControlAccessibilityService")
+          val companionField = outerClass.getDeclaredField("Companion")
+          companionField.isAccessible = true
+          val companion = companionField.get(null)
+          val getter = companion.javaClass.getDeclaredMethod("getInstance")
+          getter.isAccessible = true
+          getter.invoke(companion)
+      } catch (e: Exception) {
+          android.util.Log.e("VoiceControlPlugin", "getServiceInstance failed: ${e.message}")
+          null
+      }
   }
 
   override fun onMethodCall(call: MethodCall, result: Result) {
@@ -92,40 +102,75 @@ class VoiceControlPlugin: FlutterPlugin, MethodCallHandler {
         return
     }
 
-    val service = getServiceInstance() ?: return result.success(false)
-    val clazz = service.javaClass
+    val service = getServiceInstance()
 
     try {
         when (call.method) {
             "performBack" -> {
-                clazz.getMethod("performBack").invoke(service)
+                if (service == null) {
+                    result.success(false)
+                    return
+                }
+                service.javaClass.getMethod("performBack").invoke(service)
                 result.success(true)
             }
             "performHome" -> {
-                clazz.getMethod("performHome").invoke(service)
-                result.success(true)
+                if (service != null) {
+                    android.widget.Toast.makeText(context, "Accessibility Home Triggered", android.widget.Toast.LENGTH_SHORT).show()
+                    service.javaClass.getMethod("performHome").invoke(service)
+                    result.success("Accessibility Home Triggered")
+                } else {
+                    android.widget.Toast.makeText(context, "Intent Home Triggered", android.widget.Toast.LENGTH_SHORT).show()
+                    try {
+                        val intent = Intent(Intent.ACTION_MAIN).apply {
+                            addCategory(Intent.CATEGORY_HOME)
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
+                        context?.startActivity(intent)
+                        result.success("Intent Home Triggered")
+                    } catch (e: Exception) {
+                        result.success("Intent Error: ${e.message}")
+                    }
+                }
             }
             "performRecents" -> {
-                clazz.getMethod("performRecents").invoke(service)
-                result.success(true)
+                if (service != null) {
+                    service.javaClass.getMethod("performRecents").invoke(service)
+                    result.success(true)
+                } else {
+                    // Fallback: simulate the App Switch key press on a background thread
+                    try {
+                        Thread {
+                            val inst = Instrumentation()
+                            inst.sendKeyDownUpSync(KeyEvent.KEYCODE_APP_SWITCH)
+                        }.start()
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.success(false)
+                    }
+                }
             }
             "performTap" -> {
+                if (service == null) return result.success(false)
                 val x = (call.argument<Any>("x") as? Number)?.toFloat() ?: 0f
                 val y = (call.argument<Any>("y") as? Number)?.toFloat() ?: 0f
-                clazz.getMethod("performTap", Float::class.java, Float::class.java).invoke(service, x, y)
+                service.javaClass.getMethod("performTap", Float::class.java, Float::class.java).invoke(service, x, y)
                 result.success(true)
             }
             "getScreenContent" -> {
-                val content = clazz.getMethod("getScreenContent").invoke(service) as? String ?: "[accessibility service not connected]"
+                if (service == null) return result.success("[accessibility service not connected]")
+                val content = service.javaClass.getMethod("getScreenContent").invoke(service) as? String ?: "[accessibility service not connected]"
                 result.success(content)
             }
             "closeCurrentApp" -> {
-                clazz.getMethod("closeCurrentApp").invoke(service)
+                if (service == null) return result.success(false)
+                service.javaClass.getMethod("closeCurrentApp").invoke(service)
                 result.success(true)
             }
             "clickByLabel" -> {
+                if (service == null) return result.success(false)
                 val label = call.argument<String>("label") ?: ""
-                val clicked = clazz.getMethod("clickByLabel", String::class.java).invoke(service, label) as? Boolean ?: false
+                val clicked = service.javaClass.getMethod("clickByLabel", String::class.java).invoke(service, label) as? Boolean ?: false
                 result.success(clicked)
             }
             else -> result.notImplemented()
