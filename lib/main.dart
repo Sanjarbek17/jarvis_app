@@ -7,6 +7,7 @@ import 'pages/control_page.dart';
 import 'services/wake_word_service.dart';
 import 'services/qwen_ai_service.dart';
 import 'utils/command_orchestrator.dart';
+import 'services/remote_control_client.dart';
 
 Future<void> initializeService() async {
   final service = FlutterBackgroundService();
@@ -44,6 +45,7 @@ void onStart(ServiceInstance service) async {
 
   service.on('stopService').listen((event) {
     wakeWordService.stop();
+    remoteControlClient.disconnect();
     service.stopSelf();
   });
 
@@ -62,6 +64,9 @@ void onStart(ServiceInstance service) async {
   // Start listening continuously in background
   await wakeWordService.init();
   await wakeWordService.startAlwaysOn();
+  
+  // Connect to the remote control websocket server
+  remoteControlClient.connect();
 }
 
 void main() async {

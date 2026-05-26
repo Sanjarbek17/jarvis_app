@@ -36,7 +36,7 @@ class QwenAIService {
     try {
       final response = await http
           .get(Uri.parse('$_baseUrl/api/tags'))
-          .timeout(const Duration(seconds: 5));
+          .timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         final models =
             (jsonDecode(response.body)['models'] as List?)
@@ -175,7 +175,7 @@ $thought''';
           headers: {'Content-Type': 'application/json'},
           body: body,
         )
-        .timeout(const Duration(seconds: 15));
+        .timeout(const Duration(seconds: 90));
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body) as Map<String, dynamic>;

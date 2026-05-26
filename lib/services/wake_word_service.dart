@@ -3,12 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'log_service.dart';
 import 'tts_service.dart';
-import 'stt_service.dart';
 import 'dart:math';
 
-/// Hybrid voice detection service.
-/// 1. Uses 'speech_to_text' for efficient wake-word listening.
-/// 2. Uses 'record' + 'SttService' (Whisper) for high-accuracy command transcription.
+/// Voice detection service.
+/// Uses 'speech_to_text' for both wake-word listening and command transcription.
 enum WakeState { idle, awake, processing }
 
 class WakeWordService {
@@ -52,7 +50,6 @@ class WakeWordService {
   // ── Init ───────────────────────────────────────────────────────────────────
   Future<bool> init() async {
     await ttsService.init();
-    await SttService.initialize();
     
     _isAvailable = await _speech.initialize(
       onStatus: _onStatus,

@@ -37,10 +37,8 @@ dependencies:
   speech_to_text: ^7.0.0
   permission_handler: ^12.0.1
   http: ^1.2.1
-  flutter_gemma: ^0.12.5
   path_provider: ^2.1.2
   dio: ^5.4.1
-  file_picker: ^11.0.2
   shared_preferences: ^2.5.4
   flutter_tts: ^4.0.2
   record: ^6.2.0
@@ -49,6 +47,7 @@ dependencies:
   flutter_local_notifications: ^21.0.0
   voice_control_plugin:
     path: ./voice_control_plugin
+  web_socket_channel: ^3.0.3
 
 dev_dependencies:
   flutter_test:
