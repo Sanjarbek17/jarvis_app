@@ -63,6 +63,7 @@ class _ControlPageState extends State<ControlPage> with SingleTickerProviderStat
     
     setState(() => _isModelReady = true);
     await QwenAIService.initialize();
+    remoteControlClient.connect();
 
     final micPermission = await Permission.microphone.request();
     if (micPermission.isGranted) {
