@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../services/qwen_ai_service.dart';
-import '../services/stt_service.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -40,9 +38,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final model = _modelController.text.trim();
 
     if (ip.isEmpty || port == null || model.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill all fields correctly')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill all fields correctly')));
       return;
     }
 
@@ -52,9 +48,7 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() => _isSaving = false);
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Settings saved successfully')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Settings saved successfully')));
       Navigator.pop(context);
     }
   }
@@ -63,11 +57,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
-      appBar: AppBar(
-        title: const Text('Settings'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
+      appBar: AppBar(title: const Text('Settings'), backgroundColor: Colors.transparent, elevation: 0),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(
@@ -75,12 +65,7 @@ class _SettingsPageState extends State<SettingsPage> {
           children: [
             const Text(
               'OLLAMA CONFIGURATION',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 2,
-                color: Colors.blue,
-              ),
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 2, color: Colors.blue),
             ),
             const SizedBox(height: 24),
             TextField(
@@ -89,12 +74,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 labelText: 'Mac LAN IP',
                 labelStyle: TextStyle(color: Colors.white70),
                 hintText: 'e.g. 192.168.1.5',
-                enabledBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: Colors.white24),
-                ),
-                focusedBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: Colors.blue),
-                ),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.blue)),
               ),
               style: const TextStyle(color: Colors.white),
             ),
@@ -105,12 +86,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 labelText: 'Port',
                 labelStyle: TextStyle(color: Colors.white70),
                 hintText: 'e.g. 11434',
-                enabledBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: Colors.white24),
-                ),
-                focusedBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: Colors.blue),
-                ),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.blue)),
               ),
               style: const TextStyle(color: Colors.white),
               keyboardType: TextInputType.number,
@@ -122,25 +99,15 @@ class _SettingsPageState extends State<SettingsPage> {
                 labelText: 'Model Name',
                 labelStyle: TextStyle(color: Colors.white70),
                 hintText: 'e.g. qwen2.5:0.5b',
-                enabledBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: Colors.white24),
-                ),
-                focusedBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: Colors.blue),
-                ),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.blue)),
               ),
               style: const TextStyle(color: Colors.white),
             ),
             const SizedBox(height: 24),
             SwitchListTile(
-              title: const Text(
-                'Use Secure Connection (HTTPS)',
-                style: TextStyle(color: Colors.white, fontSize: 14),
-              ),
-              subtitle: const Text(
-                'Enable if your Ollama server uses SSL',
-                style: TextStyle(color: Colors.white38, fontSize: 12),
-              ),
+              title: const Text('Use Secure Connection (HTTPS)', style: TextStyle(color: Colors.white, fontSize: 14)),
+              subtitle: const Text('Enable if your Ollama server uses SSL', style: TextStyle(color: Colors.white38, fontSize: 12)),
               value: _useHttps,
               onChanged: (bool value) {
                 setState(() => _useHttps = value);
@@ -157,16 +124,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue.shade600,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
-                child: _isSaving
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text(
-                        'SAVE SETTINGS',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
+                child: _isSaving ? const CircularProgressIndicator(color: Colors.white) : const Text('SAVE SETTINGS', style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ),
             const SizedBox(height: 20),
