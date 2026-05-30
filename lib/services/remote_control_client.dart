@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'action_executor_service.dart';
 import 'log_service.dart';
+import '../utils/platform_util.dart';
 
 class RemoteControlClient {
   WebSocketChannel? _channel;
@@ -18,8 +19,24 @@ class RemoteControlClient {
       logger.log('Connecting to remote control server: $serverUrl');
       _channel = WebSocketChannel.connect(Uri.parse(serverUrl));
       
-      _channel!.ready.then((_) {
+      _channel!.ready.then((_) async {
         isConnected.value = true;
+        try {
+          final size = await PlatformUtil.getScreenSize();
+          if (size != null) {
+            final width = size['width'];
+            final height = size['height'];
+            final msg = jsonEncode({
+              'type': 'device_size',
+              'width': width,
+              'height': height,
+            });
+            _channel!.sink.add(msg);
+            logger.log('Sent device size to server: ${width}x${height}');
+          }
+        } catch (e) {
+          logger.log('Failed to send device size: $e');
+        }
       });
 
       _channel!.stream.listen(

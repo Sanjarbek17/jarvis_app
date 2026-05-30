@@ -22,4 +22,24 @@ class PlatformUtil {
       logger.log('Failed to open settings: $e');
     }
   }
+
+  static Future<Map<String, int>?> getScreenSize() async {
+    try {
+      final size = await _platform.invokeMapMethod<String, int>('getScreenSize');
+      return size;
+    } catch (e) {
+      logger.log("Error getting screen size: $e");
+      return null;
+    }
+  }
+
+  static Future<bool> requestScreenCapturePermission() async {
+    try {
+      final granted = await _platform.invokeMethod<bool>('requestScreenCapturePermission');
+      return granted ?? false;
+    } catch (e) {
+      logger.log("Error requesting screen capture: $e");
+      return false;
+    }
+  }
 }

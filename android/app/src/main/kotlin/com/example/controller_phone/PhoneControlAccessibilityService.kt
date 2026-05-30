@@ -11,6 +11,13 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.util.Log
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.Executors
+import android.media.projection.MediaProjection
+import android.media.ImageReader
+import android.media.Image
+import android.graphics.PixelFormat
+import android.hardware.display.DisplayManager
+import android.os.Handler
+import android.os.Looper
 
 /// Single responsibility: interact with the Android Accessibility framework.
 /// Provides: global actions, gesture taps, screen content reading, click-by-label.
@@ -68,15 +75,111 @@ class PhoneControlAccessibilityService : AccessibilityService() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             takeScreenshot(callback)
         } else {
-            Log.e(TAG, "takeScreenshot requires API 30+")
+            val projection = mediaProjection
+            if (projection != null) {
+                takeScreenshotMediaProjection(projection, callback)
+            } else {
+                Log.e(TAG, "takeScreenshot requires API 30+ or MediaProjection")
+                callback(null)
+            }
+        }
+    }
+
+    private fun takeScreenshotMediaProjection(
+        projection: MediaProjection,
+        callback: (ByteArray?) -> Unit
+    ) {
+        try {
+            val metrics = resources.displayMetrics
+            val width = metrics.widthPixels
+            val height = metrics.heightPixels
+            val dpi = metrics.densityDpi
+
+            val imageReader = ImageReader.newInstance(
+                width, height,
+                PixelFormat.RGBA_8888, 2
+            )
+
+            val flags = DisplayManager.VIRTUAL_DISPLAY_FLAG_OWN_CONTENT_ONLY or
+                    DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC
+
+            val virtualDisplay = projection.createVirtualDisplay(
+                "ScreenCapture",
+                width, height, dpi,
+                flags,
+                imageReader.surface, null, null
+            )
+
+            imageReader.setOnImageAvailableListener(object : ImageReader.OnImageAvailableListener {
+                private var captured = false
+
+                override fun onImageAvailable(reader: ImageReader) {
+                    if (captured) return
+                    captured = true
+
+                    var image: Image? = null
+                    var bitmap: Bitmap? = null
+                    val bos = ByteArrayOutputStream()
+
+                    try {
+                        image = reader.acquireLatestImage()
+                        if (image != null) {
+                            val planes = image.planes
+                            val buffer = planes[0].buffer
+                            val pixelStride = planes[0].pixelStride
+                            val rowStride = planes[0].rowStride
+                            val rowPadding = rowStride - pixelStride * width
+
+                            bitmap = Bitmap.createBitmap(
+                                width + rowPadding / pixelStride,
+                                height,
+                                Bitmap.Config.ARGB_8888
+                            )
+                            bitmap.copyPixelsFromBuffer(buffer)
+
+                            val croppedBitmap = Bitmap.createBitmap(bitmap, 0, 0, width, height)
+                            croppedBitmap.compress(Bitmap.CompressFormat.PNG, 90, bos)
+                            croppedBitmap.recycle()
+
+                            callback(bos.toByteArray())
+                        } else {
+                            callback(null)
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "MediaProjection screenshot error: ${e.message}")
+                        callback(null)
+                    } finally {
+                        image?.close()
+                        bitmap?.recycle()
+                        virtualDisplay?.release()
+                        imageReader.close()
+                    }
+                }
+            }, Handler(Looper.getMainLooper()))
+
+        } catch (e: Exception) {
+            Log.e(TAG, "MediaProjection setup failed: ${e.message}")
             callback(null)
         }
     }
 
     fun performTap(x: Float, y: Float) {
+        Log.d(TAG, "performTap: dispatching gesture at ($x, $y)")
         val path = Path().also { it.moveTo(x, y) }
         val stroke = GestureDescription.StrokeDescription(path, 0, 100)
-        dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
+        val success = dispatchGesture(
+            GestureDescription.Builder().addStroke(stroke).build(),
+            object : GestureResultCallback() {
+                override fun onCompleted(gestureDescription: GestureDescription?) {
+                    Log.d(TAG, "performTap: gesture completed at ($x, $y)")
+                }
+                override fun onCancelled(gestureDescription: GestureDescription?) {
+                    Log.e(TAG, "performTap: gesture cancelled at ($x, $y)")
+                }
+            },
+            Handler(Looper.getMainLooper())
+        )
+        Log.d(TAG, "performTap: dispatchGesture returned $success")
     }
 
     /// Closes the app that is currently visible to the user.
@@ -267,5 +370,8 @@ class PhoneControlAccessibilityService : AccessibilityService() {
     companion object {
         private const val TAG = "VoiceControlService"
         var instance: PhoneControlAccessibilityService? = null
+        
+        @JvmStatic
+        var mediaProjection: MediaProjection? = null
     }
 }

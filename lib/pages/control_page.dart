@@ -43,7 +43,11 @@ class _ControlPageState extends State<ControlPage> with WidgetsBindingObserver {
 
   Future<void> _initSystem() async {
     await _checkAccessibility();
+    if (!_isAccessibilityEnabled) {
+      await PlatformUtil.openAccessibilitySettings();
+    }
     if (!kIsWeb) {
+      await PlatformUtil.requestScreenCapturePermission();
       remoteControlClient.connect();
     }
   }

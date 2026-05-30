@@ -15,10 +15,17 @@ import java.lang.reflect.Method
 import android.view.KeyEvent
 import android.app.Instrumentation
 import android.util.Base64
+import io.flutter.embedding.engine.plugins.activity.ActivityAware
+import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
+import android.app.Activity
+import android.os.Build
 
-class VoiceControlPlugin: FlutterPlugin, MethodCallHandler {
+class VoiceControlPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
   private lateinit var channel : MethodChannel
   private var context: Context? = null
+  private var activity: Activity? = null
+  private var pendingPermissionResult: Result? = null
+  private val SCREEN_CAPTURE_REQUEST_CODE = 4321
   private val toneGen by lazy { ToneGenerator(AudioManager.STREAM_NOTIFICATION, 80) }
 
   override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
@@ -50,6 +57,17 @@ class VoiceControlPlugin: FlutterPlugin, MethodCallHandler {
       val enabled = Settings.Secure.getString(ctx.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: ""
       val splitter = TextUtils.SimpleStringSplitter(':').also { it.setString(enabled) }
       result.success(splitter.any { it.equals(expected, ignoreCase = true) })
+      return
+    }
+
+    if (call.method == "getScreenSize") {
+      val ctx = context ?: return result.error("NO_CONTEXT", "Context is null", null)
+      val metrics = ctx.resources.displayMetrics
+      val sizeMap = mapOf(
+          "width" to metrics.widthPixels,
+          "height" to metrics.heightPixels
+      )
+      result.success(sizeMap)
       return
     }
 
@@ -91,6 +109,22 @@ class VoiceControlPlugin: FlutterPlugin, MethodCallHandler {
         } catch (e: Exception) {
             result.error("INTENT_ERROR", e.message, null)
         }
+        return
+    }
+
+    if (call.method == "requestScreenCapturePermission") {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            result.success(true)
+            return
+        }
+        val act = activity
+        if (act == null) {
+            result.error("NO_ACTIVITY", "Activity is null", null)
+            return
+        }
+        val manager = act.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as android.media.projection.MediaProjectionManager
+        act.startActivityForResult(manager.createScreenCaptureIntent(), SCREEN_CAPTURE_REQUEST_CODE)
+        pendingPermissionResult = result
         return
     }
 
@@ -197,5 +231,57 @@ class VoiceControlPlugin: FlutterPlugin, MethodCallHandler {
   override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
     channel.setMethodCallHandler(null)
     context = null
+  }
+
+  override fun onAttachedToActivity(binding: ActivityPluginBinding) {
+      activity = binding.activity
+      binding.addActivityResultListener { requestCode, resultCode, data ->
+          if (requestCode == SCREEN_CAPTURE_REQUEST_CODE) {
+              val pending = pendingPermissionResult
+              pendingPermissionResult = null
+              if (resultCode == Activity.RESULT_OK && data != null) {
+                  val act = activity
+                  if (act != null) {
+                      try {
+                          val manager = act.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as android.media.projection.MediaProjectionManager
+                          val projection = manager.getMediaProjection(resultCode, data)
+                          
+                          val serviceClass = Class.forName("com.example.controller_phone.PhoneControlAccessibilityService")
+                          val companionField = serviceClass.getDeclaredField("Companion")
+                          companionField.isAccessible = true
+                          val companion = companionField.get(null)
+                          val setter = companion.javaClass.getDeclaredMethod("setMediaProjection", android.media.projection.MediaProjection::class.java)
+                          setter.isAccessible = true
+                          setter.invoke(companion, projection)
+                          
+                          android.util.Log.d("VoiceControlPlugin", "MediaProjection stored in service.")
+                          pending?.success(true)
+                      } catch (e: Exception) {
+                          android.util.Log.e("VoiceControlPlugin", "Failed to store MediaProjection: ${e.message}")
+                          pending?.success(false)
+                      }
+                  } else {
+                      pending?.success(false)
+                  }
+              } else {
+                  pending?.success(false)
+              }
+              true
+          } else {
+              false
+          }
+      }
+  }
+
+  override fun onDetachedFromActivityForConfigChanges() {
+      activity = null
+  }
+
+  override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
+      activity = binding.activity
+  }
+
+  override fun onDetachedFromActivity() {
+      activity = null
   }
 }
