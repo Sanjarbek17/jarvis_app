@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../pages/settings_page.dart';
+import 'package:flutter/widget_previews.dart';
 import 'status_indicator.dart';
 
 class AppHeader extends StatelessWidget {
@@ -7,7 +7,6 @@ class AppHeader extends StatelessWidget {
   final bool isRemoteConnected;
   final VoidCallback onRequestAccessibility;
   final VoidCallback onRequestRemote;
-  final VoidCallback? onSettingsReturned;
 
   const AppHeader({
     super.key,
@@ -15,7 +14,6 @@ class AppHeader extends StatelessWidget {
     required this.isRemoteConnected,
     required this.onRequestAccessibility,
     required this.onRequestRemote,
-    this.onSettingsReturned,
   });
 
   @override
@@ -25,29 +23,36 @@ class AppHeader extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'PHONE CONTROLLER',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 2,
-                  color: Colors.blue.shade400,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'PHONE CONTROLLER',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 2.5,
+                    color: Colors.blue.shade400,
+                  ),
                 ),
-              ),
-              const Text(
-                'Voice Assistant',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.white,
+                const SizedBox(height: 2),
+                const Text(
+                  'Remote Control',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    letterSpacing: -0.5,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               StatusIndicator(
                 isEnabled: isAccessibilityEnabled,
@@ -59,21 +64,41 @@ class AppHeader extends StatelessWidget {
                 onRequest: onRequestRemote,
                 label: 'Remote',
               ),
-              const SizedBox(width: 8),
-              IconButton(
-                icon: const Icon(Icons.settings, color: Colors.white70),
-                onPressed: () async {
-                  await Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const SettingsPage()),
-                  );
-                  onSettingsReturned?.call();
-                },
-              ),
             ],
           ),
         ],
       ),
     );
   }
+}
+
+// --- FLUTTER WIDGET PREVIEW ---
+@Preview(name: 'App Header - Connected State')
+Widget previewAppHeaderConnected() {
+  return Scaffold(
+    backgroundColor: const Color(0xFF0F172A),
+    body: SafeArea(
+      child: AppHeader(
+        isAccessibilityEnabled: true,
+        isRemoteConnected: true,
+        onRequestAccessibility: () {},
+        onRequestRemote: () {},
+      ),
+    ),
+  );
+}
+
+@Preview(name: 'App Header - Disconnected State')
+Widget previewAppHeaderDisconnected() {
+  return Scaffold(
+    backgroundColor: const Color(0xFF0F172A),
+    body: SafeArea(
+      child: AppHeader(
+        isAccessibilityEnabled: false,
+        isRemoteConnected: false,
+        onRequestAccessibility: () {},
+        onRequestRemote: () {},
+      ),
+    ),
+  );
 }

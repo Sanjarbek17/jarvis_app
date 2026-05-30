@@ -1,63 +1,59 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 import '../services/action_executor_service.dart';
-import '../services/qwen_ai_service.dart';
 
-class ControlPanel extends StatefulWidget {
+class ControlPanel extends StatelessWidget {
   const ControlPanel({super.key});
 
   @override
-  State<ControlPanel> createState() => _ControlPanelState();
-}
-
-class _ControlPanelState extends State<ControlPanel> {
-  @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white10),
+        color: Colors.white.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           const Text(
-            'DIRECT CONTROLS',
-            style: TextStyle(fontSize: 10, letterSpacing: 2, color: Colors.white38),
+            'NAVIGATION HUB',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 2,
+              color: Colors.white38,
+            ),
           ),
-          const SizedBox(height: 15),
+          const SizedBox(height: 24),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _SmallControl(Icons.arrow_back, 'BACK', () => actionExecutorService.execute({'action': 'back'})),
-              _SmallControl(Icons.home, 'HOME', () => actionExecutorService.execute({'action': 'home'})),
-              _SmallControl(Icons.layers, 'RECENTS', () => actionExecutorService.execute({'action': 'recents'})),
+              Expanded(
+                child: _CapsuleButton(
+                  icon: Icons.arrow_back,
+                  label: 'Back',
+                  onTap: () => actionExecutorService.execute({'action': 'back'}),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _CapsuleButton(
+                  icon: Icons.home_outlined,
+                  label: 'Home',
+                  onTap: () => actionExecutorService.execute({'action': 'home'}),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _CapsuleButton(
+                  icon: Icons.layers_outlined,
+                  label: 'Recents',
+                  onTap: () => actionExecutorService.execute({'action': 'recents'}),
+                ),
+              ),
             ],
-          ),
-          const SizedBox(height: 20),
-          const Divider(color: Colors.white10),
-          const SizedBox(height: 10),
-          const Text(
-            'AI SERVER',
-            style: TextStyle(fontSize: 10, letterSpacing: 2, color: Colors.white38),
-          ),
-          const SizedBox(height: 8),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.computer, color: Colors.blue),
-            title: const Text('Ollama on Mac (LAN)', style: TextStyle(fontSize: 14, color: Colors.white)),
-            subtitle: Text(
-              '${QwenAIService.model} @ ${QwenAIService.macIp}:${QwenAIService.port}',
-              style: TextStyle(fontSize: 12, color: Colors.blue.shade300),
-            ),
-            trailing: IconButton(
-              icon: const Icon(Icons.refresh, color: Colors.white70),
-              onPressed: () async {
-                await QwenAIService.initialize();
-                if (mounted) setState(() {});
-              },
-              tooltip: 'Re-check connection',
-            ),
           ),
         ],
       ),
@@ -65,28 +61,79 @@ class _ControlPanelState extends State<ControlPanel> {
   }
 }
 
-class _SmallControl extends StatelessWidget {
+class _CapsuleButton extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
 
-  const _SmallControl(this.icon, this.label, this.onTap);
+  const _CapsuleButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          children: [
-            Icon(icon, color: Colors.white70),
-            const SizedBox(height: 4),
-            Text(label, style: const TextStyle(fontSize: 10, color: Colors.white38)),
+    return Container(
+      height: 60,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(30),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withValues(alpha: 0.08),
+            Colors.white.withValues(alpha: 0.02),
           ],
+        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(30),
+          highlightColor: Colors.white.withValues(alpha: 0.05),
+          splashColor: Colors.white.withValues(alpha: 0.1),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 18, color: Colors.white70),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white70,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
+}
+
+// --- FLUTTER WIDGET PREVIEW ---
+@Preview(name: 'Control Panel Preview')
+Widget previewControlPanel() {
+  return const Scaffold(
+    backgroundColor: Color(0xFF0F172A),
+    body: Center(
+      child: Padding(
+        padding: EdgeInsets.all(20.0),
+        child: ControlPanel(),
+      ),
+    ),
+  );
 }

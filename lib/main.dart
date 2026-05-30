@@ -4,18 +4,15 @@ import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'pages/control_page.dart';
-import 'services/wake_word_service.dart';
-import 'services/qwen_ai_service.dart';
-import 'utils/command_orchestrator.dart';
 import 'services/remote_control_client.dart';
 
 Future<void> initializeService() async {
   final service = FlutterBackgroundService();
 
   const AndroidNotificationChannel channel = AndroidNotificationChannel(
-    'voice_control_channel',
-    'Voice Control Service',
-    description: 'This channel is used for background voice listening.',
+    'remote_control_channel',
+    'Remote Control Service',
+    description: 'This channel is used for the background remote control connection.',
     importance: Importance.low,
   );
 
@@ -29,9 +26,9 @@ Future<void> initializeService() async {
       onStart: onStart,
       autoStart: false,
       isForegroundMode: true,
-      notificationChannelId: 'voice_control_channel',
-      initialNotificationTitle: 'Jarvis',
-      initialNotificationContent: 'Waiting for wake word...',
+      notificationChannelId: 'remote_control_channel',
+      initialNotificationTitle: 'Phone Controller',
+      initialNotificationContent: 'Remote control active...',
       foregroundServiceNotificationId: 888,
     ),
     iosConfiguration: IosConfiguration(autoStart: false),
@@ -44,26 +41,9 @@ void onStart(ServiceInstance service) async {
   WidgetsFlutterBinding.ensureInitialized();
 
   service.on('stopService').listen((event) {
-    wakeWordService.stop();
     remoteControlClient.disconnect();
     service.stopSelf();
   });
-
-  await QwenAIService.initialize();
-
-  wakeWordService.onCommandDetected = (command) {
-    CommandOrchestrator.processCommand(
-      words: command,
-      onStatusUpdate: (status) {
-        service.invoke('update', {'status': status});
-      },
-      onFinish: () {},
-    );
-  };
-
-  // Start listening continuously in background
-  await wakeWordService.init();
-  await wakeWordService.startAlwaysOn();
   
   // Connect to the remote control websocket server
   remoteControlClient.connect();
@@ -73,20 +53,19 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   // Request necessary permissions for background execution
-  await Permission.microphone.request();
   await Permission.notification.request();
   
   await initializeService();
-  runApp(const VoiceControllerApp());
+  runApp(const PhoneControllerApp());
 }
 
-class VoiceControllerApp extends StatelessWidget {
-  const VoiceControllerApp({super.key});
+class PhoneControllerApp extends StatelessWidget {
+  const PhoneControllerApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'AI Phone Controller',
+      title: 'Phone Controller',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
