@@ -36,16 +36,27 @@ class VoiceControlPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
 
   private fun getServiceInstance(): Any? {
       return try {
-          // Kotlin companion objects are stored as a static field named "Companion" on the outer class
           val outerClass = Class.forName("com.example.controller_phone.PhoneControlAccessibilityService")
-          val companionField = outerClass.getDeclaredField("Companion")
-          companionField.isAccessible = true
-          val companion = companionField.get(null)
-          val getter = companion.javaClass.getDeclaredMethod("getInstance")
-          getter.isAccessible = true
-          getter.invoke(companion)
+          try {
+              // Try direct public static @JvmField first
+              val field = outerClass.getField("instance")
+              field.get(null)
+          } catch (e: Exception) {
+              // Fallback to companion object
+              val companionField = outerClass.getDeclaredField("Companion")
+              companionField.isAccessible = true
+              val companion = companionField.get(null)
+              val getter = companion.javaClass.getDeclaredMethod("getInstance")
+              getter.isAccessible = true
+              getter.invoke(companion)
+          }
       } catch (e: Exception) {
-          android.util.Log.e("VoiceControlPlugin", "getServiceInstance failed: ${e.message}")
+          android.util.Log.e("VoiceControlPlugin", "getServiceInstance failed", e)
+          activity?.let { act ->
+              act.runOnUiThread {
+                  android.widget.Toast.makeText(act, "Service Init Error: ${e.javaClass.simpleName} - ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+              }
+          }
           null
       }
   }
@@ -62,7 +73,10 @@ class VoiceControlPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
 
     if (call.method == "getScreenSize") {
       val ctx = context ?: return result.error("NO_CONTEXT", "Context is null", null)
-      val metrics = ctx.resources.displayMetrics
+      val wm = ctx.getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
+      val display = wm.defaultDisplay
+      val metrics = android.util.DisplayMetrics()
+      display.getRealMetrics(metrics)
       val sizeMap = mapOf(
           "width" to metrics.widthPixels,
           "height" to metrics.heightPixels
@@ -137,6 +151,38 @@ class VoiceControlPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
         return
     }
 
+    if (call.method == "installApk") {
+        val apkPath = call.argument<String>("path") ?: ""
+        if (apkPath.isEmpty()) {
+            result.error("INVALID_PATH", "Path is empty", null)
+            return
+        }
+        val file = java.io.File(apkPath)
+        if (!file.exists()) {
+            result.error("FILE_NOT_FOUND", "APK file not found at $apkPath", null)
+            return
+        }
+        val ctx = context ?: return result.error("NO_CONTEXT", "Context is null", null)
+        val service = getServiceInstance()
+        val startCtx = (service as? Context) ?: ctx
+        try {
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                val uri = androidx.core.content.FileProvider.getUriForFile(
+                    startCtx,
+                    "${startCtx.packageName}.fileprovider",
+                    file
+                )
+                setDataAndType(uri, "application/vnd.android.package-archive")
+            }
+            startCtx.startActivity(intent)
+            result.success(true)
+        } catch (e: Exception) {
+            result.error("INSTALL_ERROR", e.message, null)
+        }
+        return
+    }
+
     val service = getServiceInstance()
 
     try {
@@ -186,10 +232,45 @@ class VoiceControlPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
                 }
             }
             "performTap" -> {
-                if (service == null) return result.success(false)
+                if (service == null) {
+                    activity?.let { act ->
+                        act.runOnUiThread {
+                            android.widget.Toast.makeText(act, "Tap Failed: Service Disconnected", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    return result.success(false)
+                }
+                activity?.let { act ->
+                    act.runOnUiThread {
+                        android.widget.Toast.makeText(act, "Accessibility Tap Triggered", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
                 val x = (call.argument<Any>("x") as? Number)?.toFloat() ?: 0f
                 val y = (call.argument<Any>("y") as? Number)?.toFloat() ?: 0f
                 service.javaClass.getMethod("performTap", Float::class.java, Float::class.java).invoke(service, x, y)
+                result.success(true)
+            }
+            "performSwipe" -> {
+                if (service == null) {
+                    activity?.let { act ->
+                        act.runOnUiThread {
+                            android.widget.Toast.makeText(act, "Swipe Failed: Service Disconnected", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    return result.success(false)
+                }
+                activity?.let { act ->
+                    act.runOnUiThread {
+                        android.widget.Toast.makeText(act, "Accessibility Swipe Triggered", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+                val x1 = (call.argument<Any>("x1") as? Number)?.toFloat() ?: 0f
+                val y1 = (call.argument<Any>("y1") as? Number)?.toFloat() ?: 0f
+                val x2 = (call.argument<Any>("x2") as? Number)?.toFloat() ?: 0f
+                val y2 = (call.argument<Any>("y2") as? Number)?.toFloat() ?: 0f
+                val duration = (call.argument<Any>("duration") as? Number)?.toLong() ?: 300L
+                service.javaClass.getMethod("performSwipe", Float::class.java, Float::class.java, Float::class.java, Float::class.java, Long::class.java)
+                    .invoke(service, x1, y1, x2, y2, duration)
                 result.success(true)
             }
             "getScreenContent" -> {
@@ -198,22 +279,39 @@ class VoiceControlPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
                 result.success(content)
             }
             "takeScreenshot" -> {
-                if (service == null) return result.success(null)
-                // Invoke takeScreenshotCompat(callback) via reflection
-                val method = service.javaClass.getMethod("takeScreenshotCompat", Function1::class.java)
-                method.invoke(service, { bytes: ByteArray? ->
-                    if (bytes != null) {
-                        val b64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
-                        result.success(b64)
-                    } else {
-                        result.success(null)
-                    }
-                })
+                if (service == null) return result.success("ERROR_SERVICE_NULL")
+                try {
+                    // Invoke takeScreenshotCompat(callback) via reflection
+                    val method = service.javaClass.getMethod("takeScreenshotCompat", Function1::class.java)
+                    method.invoke(service, { bytes: ByteArray? ->
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                            if (bytes != null) {
+                                val b64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                                result.success(b64)
+                            } else {
+                                result.success("ERROR_CALLBACK_BYTES_NULL")
+                            }
+                        }
+                    })
+                } catch (e: Exception) {
+                    result.success("ERROR_REFLECTION: ${e.javaClass.simpleName} - ${e.message}")
+                }
             }
             "closeCurrentApp" -> {
                 if (service == null) return result.success(false)
                 service.javaClass.getMethod("closeCurrentApp").invoke(service)
                 result.success(true)
+            }
+            "wakeUp" -> {
+                if (service == null) return result.success(false)
+                val success = service.javaClass.getMethod("wakeUp").invoke(service) as? Boolean ?: false
+                result.success(success)
+            }
+            "writeText" -> {
+                if (service == null) return result.success(false)
+                val text = call.argument<String>("text") ?: ""
+                val typed = service.javaClass.getMethod("inputText", String::class.java).invoke(service, text) as? Boolean ?: false
+                result.success(typed)
             }
             "clickByLabel" -> {
                 if (service == null) return result.success(false)
@@ -245,14 +343,9 @@ class VoiceControlPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
                       try {
                           val manager = act.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as android.media.projection.MediaProjectionManager
                           val projection = manager.getMediaProjection(resultCode, data)
-                          
                           val serviceClass = Class.forName("com.example.controller_phone.PhoneControlAccessibilityService")
-                          val companionField = serviceClass.getDeclaredField("Companion")
-                          companionField.isAccessible = true
-                          val companion = companionField.get(null)
-                          val setter = companion.javaClass.getDeclaredMethod("setMediaProjection", android.media.projection.MediaProjection::class.java)
-                          setter.isAccessible = true
-                          setter.invoke(companion, projection)
+                          val field = serviceClass.getField("mediaProjection")
+                          field.set(null, projection)
                           
                           android.util.Log.d("VoiceControlPlugin", "MediaProjection stored in service.")
                           pending?.success(true)

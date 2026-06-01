@@ -7,6 +7,7 @@ import '../services/remote_control_client.dart';
 
 import '../widgets/app_header.dart';
 import '../widgets/control_panel.dart';
+import '../widgets/update_panel.dart';
 
 import '../utils/platform_util.dart';
 
@@ -93,6 +94,8 @@ class _ControlPageState extends State<ControlPage> with WidgetsBindingObserver {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         ControlPanel(),
+                        SizedBox(height: 20),
+                        UpdatePanel(),
                         SizedBox(height: 40),
                       ],
                     ),

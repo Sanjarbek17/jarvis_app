@@ -42,4 +42,14 @@ class PlatformUtil {
       return false;
     }
   }
+
+  static Future<bool> installApk(String path) async {
+    try {
+      final success = await _platform.invokeMethod<bool>('installApk', {'path': path});
+      return success ?? false;
+    } catch (e) {
+      logger.log("Error invoking installApk: $e");
+      return false;
+    }
+  }
 }

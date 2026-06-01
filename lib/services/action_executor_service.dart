@@ -1,4 +1,8 @@
 import 'package:flutter/services.dart';
+import 'package:dio/dio.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
+import '../utils/platform_util.dart';
 import 'log_service.dart';
 import 'remote_control_client.dart';
 
@@ -32,11 +36,12 @@ class ActionExecutorService {
         case 'screenshot':
           logger.log('ActionExecutor: taking screenshot');
           final b64 = await _platform.invokeMethod<String>('takeScreenshot');
-          if (b64 != null && b64.isNotEmpty) {
+          logger.log('takeScreenshot result raw: ${b64 != null ? (b64.length > 50 ? b64.substring(0, 50) : b64) : 'null'}');
+          if (b64 != null && b64.isNotEmpty && !b64.startsWith('ERROR_')) {
             remoteControlClient.sendScreenshot(b64);
             result = 'Screenshot captured and sent';
           } else {
-            result = 'Screenshot failed (accessibility service may not be connected)';
+            result = 'Screenshot failed: $b64';
           }
           break;
 
@@ -56,6 +61,23 @@ class ActionExecutorService {
           logger.log('ActionExecutor: tap at ($x, $y)');
           await _platform.invokeMethod('performTap', {'x': x, 'y': y});
           result = 'Tapped ($x, $y)';
+          break;
+
+        case 'swipe':
+          final x1 = (action['x'] as num?)?.toDouble() ?? 0.0;
+          final y1 = (action['y'] as num?)?.toDouble() ?? 0.0;
+          final x2 = (action['x2'] as num?)?.toDouble() ?? 0.0;
+          final y2 = (action['y2'] as num?)?.toDouble() ?? 0.0;
+          final duration = (action['duration'] as num?)?.toInt() ?? 300;
+          logger.log('ActionExecutor: swipe from ($x1, $y1) to ($x2, $y2)');
+          await _platform.invokeMethod('performSwipe', {
+            'x1': x1,
+            'y1': y1,
+            'x2': x2,
+            'y2': y2,
+            'duration': duration,
+          });
+          result = 'Swiped from ($x1, $y1) to ($x2, $y2)';
           break;
 
         case 'click':
@@ -82,12 +104,54 @@ class ActionExecutorService {
           }
           break;
 
+        case 'write':
+          final text = action['text'] as String? ?? '';
+          logger.log('ActionExecutor: write/type text "$text"');
+          final success = await _platform.invokeMethod<bool>('writeText', {'text': text});
+          if (success == true) {
+            result = 'Wrote "$text"';
+          } else {
+            result = 'Failed to write "$text" (no active focused input?)';
+          }
+          break;
+
+        case 'wakeup':
+          logger.log('ActionExecutor: waking up screen');
+          final success = await _platform.invokeMethod<bool>('wakeUp');
+          result = success == true ? 'Screen woke up' : 'Failed to wake up screen';
+          break;
+
         case 'say':
           result = action['text'] as String? ?? 'I have nothing to say.';
           break;
 
         case 'error':
           result = action['message'] as String? ?? 'I encountered an AI error.';
+          break;
+
+        case 'update':
+          final url = action['url'] as String? ?? '';
+          if (url.isEmpty) {
+            result = 'Update error: URL is empty';
+            break;
+          }
+          logger.log('ActionExecutor: starting update from $url');
+          try {
+            final tempDir = await getTemporaryDirectory();
+            final apkPath = '${tempDir.path}/app-update.apk';
+            
+            // Download the file
+            final dio = Dio();
+            logger.log('Downloading APK to $apkPath...');
+            await dio.download(url, apkPath);
+            logger.log('Download complete. Triggering install...');
+            
+            final success = await PlatformUtil.installApk(apkPath);
+            result = success ? 'App installation started' : 'Failed to start app installation';
+          } catch (e) {
+            logger.log('Update error: $e');
+            result = 'Update failed: $e';
+          }
           break;
 
         default:

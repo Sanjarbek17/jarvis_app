@@ -1,6 +1,7 @@
 package com.example.controller_phone
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Context
 import android.accessibilityservice.GestureDescription
 import android.graphics.Bitmap
 import android.graphics.Path
@@ -42,29 +43,41 @@ class PhoneControlAccessibilityService : AccessibilityService() {
     @android.annotation.SuppressLint("NewApi")
     fun takeScreenshot(callback: (ByteArray?) -> Unit) {
         val executor = Executors.newSingleThreadExecutor()
+        val handler = Handler(Looper.getMainLooper())
         takeScreenshot(
             Display.DEFAULT_DISPLAY,
             executor,
             object : AccessibilityService.TakeScreenshotCallback {
                 override fun onSuccess(result: AccessibilityService.ScreenshotResult) {
                     try {
-                        // Use reflection to avoid API-level compile errors on ScreenshotResult
-                        val hardwareBitmap = result.javaClass
-                            .getMethod("getHardwareBitmap")
-                            .invoke(result) as Bitmap
-                        val softBitmap = hardwareBitmap.copy(Bitmap.Config.ARGB_8888, false)
-                        hardwareBitmap.recycle()
-                        val stream = ByteArrayOutputStream()
-                        softBitmap.compress(Bitmap.CompressFormat.PNG, 90, stream)
-                        softBitmap.recycle()
-                        callback(stream.toByteArray())
+                        val hardwareBuffer = result.hardwareBuffer
+                        val colorSpace = result.colorSpace
+                        val bitmap = Bitmap.wrapHardwareBuffer(hardwareBuffer, colorSpace)
+                        hardwareBuffer.close()
+                        if (bitmap != null) {
+                            val softBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, false)
+                            bitmap.recycle()
+                            val stream = ByteArrayOutputStream()
+                            softBitmap.compress(Bitmap.CompressFormat.PNG, 90, stream)
+                            softBitmap.recycle()
+                            callback(stream.toByteArray())
+                        } else {
+                            Log.e(TAG, "Failed to wrap hardware buffer into bitmap")
+                            callback(null)
+                        }
                     } catch (e: Exception) {
                         Log.e(TAG, "Screenshot compress failed: ${e.message}")
+                        handler.post {
+                            android.widget.Toast.makeText(applicationContext, "Screenshot Compress Error", android.widget.Toast.LENGTH_SHORT).show()
+                        }
                         callback(null)
                     }
                 }
                 override fun onFailure(errorCode: Int) {
                     Log.e(TAG, "Screenshot failed with error: $errorCode")
+                    handler.post {
+                        android.widget.Toast.makeText(applicationContext, "Native Screenshot Failed: $errorCode", android.widget.Toast.LENGTH_SHORT).show()
+                    }
                     callback(null)
                 }
             }
@@ -73,13 +86,32 @@ class PhoneControlAccessibilityService : AccessibilityService() {
 
     fun takeScreenshotCompat(callback: (ByteArray?) -> Unit) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            takeScreenshot(callback)
+            takeScreenshot { bytes ->
+                if (bytes != null) {
+                    callback(bytes)
+                } else {
+                    Log.w(TAG, "Native accessibility screenshot failed. Falling back to MediaProjection.")
+                    val projection = mediaProjection
+                    if (projection != null) {
+                        takeScreenshotMediaProjection(projection, callback)
+                    } else {
+                        Log.e(TAG, "MediaProjection was null during native fallback.")
+                        Handler(Looper.getMainLooper()).post {
+                            android.widget.Toast.makeText(applicationContext, "Fallback Failed: MediaProjection Null", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                        callback(null)
+                    }
+                }
+            }
         } else {
             val projection = mediaProjection
             if (projection != null) {
                 takeScreenshotMediaProjection(projection, callback)
             } else {
                 Log.e(TAG, "takeScreenshot requires API 30+ or MediaProjection")
+                Handler(Looper.getMainLooper()).post {
+                    android.widget.Toast.makeText(applicationContext, "Screenshot requires MediaProjection", android.widget.Toast.LENGTH_SHORT).show()
+                }
                 callback(null)
             }
         }
@@ -90,7 +122,10 @@ class PhoneControlAccessibilityService : AccessibilityService() {
         callback: (ByteArray?) -> Unit
     ) {
         try {
-            val metrics = resources.displayMetrics
+            val wm = getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
+            val display = wm.defaultDisplay
+            val metrics = android.util.DisplayMetrics()
+            display.getRealMetrics(metrics)
             val width = metrics.widthPixels
             val height = metrics.heightPixels
             val dpi = metrics.densityDpi
@@ -147,6 +182,9 @@ class PhoneControlAccessibilityService : AccessibilityService() {
                         }
                     } catch (e: Exception) {
                         Log.e(TAG, "MediaProjection screenshot error: ${e.message}")
+                        Handler(Looper.getMainLooper()).post {
+                            android.widget.Toast.makeText(applicationContext, "MediaProjection Error: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                        }
                         callback(null)
                     } finally {
                         image?.close()
@@ -159,6 +197,9 @@ class PhoneControlAccessibilityService : AccessibilityService() {
 
         } catch (e: Exception) {
             Log.e(TAG, "MediaProjection setup failed: ${e.message}")
+            Handler(Looper.getMainLooper()).post {
+                android.widget.Toast.makeText(applicationContext, "MediaProjection Setup Error: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+            }
             callback(null)
         }
     }
@@ -167,19 +208,70 @@ class PhoneControlAccessibilityService : AccessibilityService() {
         Log.d(TAG, "performTap: dispatching gesture at ($x, $y)")
         val path = Path().also { it.moveTo(x, y) }
         val stroke = GestureDescription.StrokeDescription(path, 0, 100)
+        
+        val handler = Handler(Looper.getMainLooper())
         val success = dispatchGesture(
             GestureDescription.Builder().addStroke(stroke).build(),
             object : GestureResultCallback() {
                 override fun onCompleted(gestureDescription: GestureDescription?) {
                     Log.d(TAG, "performTap: gesture completed at ($x, $y)")
+                    handler.post {
+                        android.widget.Toast.makeText(applicationContext, "Tap completed at ($x, $y)", android.widget.Toast.LENGTH_SHORT).show()
+                    }
                 }
                 override fun onCancelled(gestureDescription: GestureDescription?) {
                     Log.e(TAG, "performTap: gesture cancelled at ($x, $y)")
+                    handler.post {
+                        android.widget.Toast.makeText(applicationContext, "Tap CANCELLED at ($x, $y)", android.widget.Toast.LENGTH_SHORT).show()
+                    }
                 }
             },
-            Handler(Looper.getMainLooper())
+            handler
         )
         Log.d(TAG, "performTap: dispatchGesture returned $success")
+        handler.post {
+            android.widget.Toast.makeText(
+                applicationContext,
+                "Dispatching Tap ($x, $y) -> Success: $success",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    fun performSwipe(x1: Float, y1: Float, x2: Float, y2: Float, duration: Long) {
+        Log.d(TAG, "performSwipe: dispatching swipe from ($x1, $y1) to ($x2, $y2) duration $duration")
+        val path = Path().also {
+            it.moveTo(x1, y1)
+            it.lineTo(x2, y2)
+        }
+        val stroke = GestureDescription.StrokeDescription(path, 0, duration)
+        val handler = Handler(Looper.getMainLooper())
+        val success = dispatchGesture(
+            GestureDescription.Builder().addStroke(stroke).build(),
+            object : GestureResultCallback() {
+                override fun onCompleted(gestureDescription: GestureDescription?) {
+                    Log.d(TAG, "performSwipe: swipe completed from ($x1, $y1) to ($x2, $y2)")
+                    handler.post {
+                        android.widget.Toast.makeText(applicationContext, "Swipe completed", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+                override fun onCancelled(gestureDescription: GestureDescription?) {
+                    Log.e(TAG, "performSwipe: swipe cancelled")
+                    handler.post {
+                        android.widget.Toast.makeText(applicationContext, "Swipe CANCELLED", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
+            handler
+        )
+        Log.d(TAG, "performSwipe: dispatchGesture returned $success")
+        handler.post {
+            android.widget.Toast.makeText(
+                applicationContext,
+                "Dispatching Swipe -> Success: $success",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+        }
     }
 
     /// Closes the app that is currently visible to the user.
@@ -334,6 +426,48 @@ class PhoneControlAccessibilityService : AccessibilityService() {
         }
     }
 
+    fun wakeUp(): Boolean {
+        return try {
+            val pm = getSystemService(android.content.Context.POWER_SERVICE) as? android.os.PowerManager
+            if (pm != null && !pm.isInteractive) {
+                val wakeLock = pm.newWakeLock(
+                    android.os.PowerManager.SCREEN_BRIGHT_WAKE_LOCK or
+                            android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                    "ControllerPhone:WakeUp"
+                )
+                wakeLock.acquire(3000)
+                wakeLock.release()
+                Log.d("VoiceControlService", "wakeUp: Screen turned on")
+                true
+            } else {
+                Log.d("VoiceControlService", "wakeUp: Screen was already on")
+                true
+            }
+        } catch (e: Exception) {
+            Log.e("VoiceControlService", "wakeUp failed: ${e.message}")
+            false
+        }
+    }
+
+    fun inputText(text: String): Boolean {
+        val root = rootInActiveWindow ?: return false
+        return try {
+            val focusedNode = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+            if (focusedNode != null && focusedNode.isEditable) {
+                val arguments = android.os.Bundle()
+                arguments.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+                val success = focusedNode.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)
+                focusedNode.recycle()
+                success
+            } else {
+                focusedNode?.recycle()
+                false
+            }
+        } finally {
+            root.recycle()
+        }
+    }
+
     // ── Click by label ────────────────────────────────────────────────────────
 
     /// Fuzzy-finds the first visible, clickable node whose text/desc contains
@@ -369,9 +503,11 @@ class PhoneControlAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val TAG = "VoiceControlService"
+        
+        @JvmField
         var instance: PhoneControlAccessibilityService? = null
         
-        @JvmStatic
+        @JvmField
         var mediaProjection: MediaProjection? = null
     }
 }

@@ -19,3 +19,8 @@
 # Fix R8 missing classes for Play Core and MediaPipe
 -dontwarn com.google.android.play.core.**
 -dontwarn com.google.mediapipe.proto.**
+
+# Keep accessibility service and voice control plugin for reflection
+-keep class com.example.controller_phone.PhoneControlAccessibilityService { *; }
+-keep class com.example.controller_phone.PhoneControlAccessibilityService$Companion { *; }
+-keep class com.example.voice_control_plugin.VoiceControlPlugin { *; }

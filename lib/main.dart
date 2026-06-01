@@ -39,10 +39,21 @@ Future<void> initializeService() async {
 void onStart(ServiceInstance service) async {
   DartPluginRegistrant.ensureInitialized();
   WidgetsFlutterBinding.ensureInitialized();
+  await RemoteControlClient.initVersion();
+
+  remoteControlClient.isBackground = true;
 
   service.on('stopService').listen((event) {
     remoteControlClient.disconnect();
     service.stopSelf();
+  });
+
+  service.on('query_status').listen((event) {
+    service.invoke('update_status', {'connected': remoteControlClient.isConnected.value});
+  });
+
+  remoteControlClient.isConnected.addListener(() {
+    service.invoke('update_status', {'connected': remoteControlClient.isConnected.value});
   });
   
   // Connect to the remote control websocket server
@@ -51,6 +62,10 @@ void onStart(ServiceInstance service) async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await RemoteControlClient.initVersion();
+  
+  // Initialize the communication channel between foreground app and background service
+  remoteControlClient.initForegroundChannel();
   
   // Request necessary permissions for background execution
   await Permission.notification.request();
